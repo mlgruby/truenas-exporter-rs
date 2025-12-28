@@ -1,0 +1,29 @@
+# TrueNAS Exporter Configuration
+
+[truenas]
+# TrueNAS host (IP or hostname with port)
+host = "TRUENAS_HOST:443"
+
+# API key for authentication (generate from TrueNAS UI under "My API Keys")
+api_key = "API_KEY"
+
+# Use TLS/SSL for WebSocket connection (REQUIRED for API key auth!)
+use_tls = true
+
+# Verify SSL certificates (set to false for self-signed certs)
+verify_ssl = false
+
+[server]
+# Address to bind the metrics server
+addr = "0.0.0.0"
+
+# Port for the metrics endpoint
+port = 9100
+
+[metrics]
+# How often to scrape metrics from TrueNAS (in seconds)
+scrape_interval_seconds = 60
+
+# Enable/disable specific metric collections
+collect_pool_metrics = true
+collect_system_metrics = true

@@ -1,0 +1,52 @@
+[package]
+name = "truenas-exporter"
+version = "0.1.0"
+edition = "2021"
+authors = ["Satyasheel"]
+description = "Prometheus exporter for TrueNAS Scale metrics"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/mlgruby/truenas-exporter-rs"
+readme = "README.md"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.48", features = ["full"] }
+
+# WebSocket client
+tokio-tungstenite = { version = "0.28", features = ["native-tls"] }
+tungstenite = "0.28"
+futures-util = "0.3"
+native-tls = "0.2"
+
+# JSON serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# HTTP server and Prometheus
+axum = "0.8"
+prometheus = "0.14"
+
+# Configuration
+config = "0.14"
+dotenvy = "0.15"
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# CLI
+clap = { version = "4.5", features = ["derive", "env"] }
+secrecy = { version = "0.10.3", features = ["serde"] }
+
+[dev-dependencies]
+mockito = "1.6"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

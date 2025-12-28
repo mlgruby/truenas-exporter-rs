@@ -1,0 +1,9 @@
+target/
+.git/
+.gitignore
+.env
+.env.*
+*.md
+LICENSE
+Makefile
+tests/
