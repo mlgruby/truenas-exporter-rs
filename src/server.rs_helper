@@ -1,0 +1,19 @@
+use crate::truenas::types::VDev;
+use crate::metrics::MetricsCollector;
+
+fn collect_vdev_stats(pool_name: &str, vdev: &VDev, metrics: &MetricsCollector) {
+    if let Some(stats) = &vdev.stats {
+        metrics.pool_vdev_error_count
+            .with_label_values(&[pool_name, &vdev.name, "read"])
+            .set(stats.read_errors as f64);
+        metrics.pool_vdev_error_count
+            .with_label_values(&[pool_name, &vdev.name, "write"])
+            .set(stats.write_errors as f64);
+        metrics.pool_vdev_error_count
+            .with_label_values(&[pool_name, &vdev.name, "checksum"])
+            .set(stats.checksum_errors as f64);
+    }
+    for child in &vdev.children {
+        collect_vdev_stats(pool_name, child, metrics);
+    }
+}
