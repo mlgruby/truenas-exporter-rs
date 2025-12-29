@@ -5,7 +5,7 @@
 
 # Variables
 BINARY_NAME := truenas-exporter
-DOCKER_IMAGE := truenas-exporter
+DOCKER_IMAGE := truenas-exporter-rs
 DOCKER_TAG := latest
 PORT := 9100
 
@@ -58,23 +58,23 @@ docker-build: ## Build Docker image
 
 docker-run: ## Run Docker container
 	docker run -d \
-		--name $(BINARY_NAME) \
+		--name $(DOCKER_IMAGE) \
 		--env-file .env \
 		-p $(PORT):$(PORT) \
 		$(DOCKER_IMAGE):$(DOCKER_TAG)
 
 docker-stop: ## Stop Docker container
-	docker stop $(BINARY_NAME) || true
-	docker rm $(BINARY_NAME) || true
+	docker stop $(DOCKER_IMAGE) || true
+	docker rm $(DOCKER_IMAGE) || true
 
 docker-logs: ## Show Docker container logs
-	docker logs -f $(BINARY_NAME)
+	docker logs -f $(DOCKER_IMAGE)
 
 docker-clean: docker-stop ## Clean Docker images
 	docker rmi $(DOCKER_IMAGE):$(DOCKER_TAG) || true
 
 docker-shell: ## Open shell in running container
-	docker exec -it $(BINARY_NAME) /bin/sh
+	docker exec -it $(DOCKER_IMAGE) /bin/sh
 
 # Docker Compose targets
 compose-up: ## Start services with docker-compose

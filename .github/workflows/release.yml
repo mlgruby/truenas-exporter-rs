@@ -91,7 +91,7 @@ jobs:
             **Using Docker:**
             ```bash
             docker run -d \
-              --name truenas-exporter \
+              --name truenas-exporter-rs \
               -p 9100:9100 \
               -e TRUENAS_HOST=your-truenas-ip:443 \
               -e TRUENAS_API_KEY=your-api-key \

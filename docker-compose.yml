@@ -1,8 +1,8 @@
 services:
   truenas-exporter:
     build: .
-    image: truenas-exporter:local
-    container_name: truenas-exporter
+    image: ghcr.io/mlgruby/truenas-exporter-rs:latest
+    container_name: truenas-exporter-rs
     ports:
       - "9100:9100"
     env_file:
