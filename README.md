@@ -22,31 +22,41 @@ A robust Prometheus metrics exporter for TrueNAS Scale 25.x (Electric Eel) and n
 ### Using Docker Compose
 
 1. **Clone the repository**:
+
    ```bash
    git clone https://github.com/yourusername/truenas-exporter-rs.git
    cd truenas-exporter-rs
    ```
 
 2. **Create `.env` file**:
+
    ```bash
    cp .env.example .env
    ```
 
 3. **Edit `.env` with your TrueNAS details**:
+
    ```env
-   TRUENAS_HOST=YOUR_TRUENAS_IP:443
-   TRUENAS_API_KEY=your-api-key-here
+   # TrueNAS Connection
+   TRUENAS_EXPORTER__TRUENAS__HOST=YOUR_TRUENAS_IP:443
+   TRUENAS_EXPORTER__TRUENAS__API_KEY=your-api-key-here
+   
+   # Security
+   TRUENAS_EXPORTER__TRUENAS__USE_TLS=true
+   TRUENAS_EXPORTER__TRUENAS__VERIFY_SSL=false
+   
+   # Logging
    RUST_LOG=info
-   # Set to true if using HTTPS/WSS (Default for port 443)
-   # USE_TLS=true 
    ```
 
 4. **Start the exporter**:
+
    ```bash
    docker-compose up -d
    ```
 
 5. **Verify it's working**:
+
    ```bash
    curl http://localhost:9100/metrics
    ```
@@ -77,25 +87,32 @@ collect_system_metrics = true
 TrueNAS Scale 25.04+ (Electric Eel) has deprecated the REST API in favor of a WebSocket-only architecture. This exporter implements a robust, persistent connection model to handle this correctly.
 
 ### 1. Persistent Connection
+
 Unlike traditional REST-based exporters, this exporter maintains a **single, long-lived WebSocket connection** to TrueNAS. It does **not** reconnect for every scrape.
+
 - **Why?** TrueNAS aggressively rate-limits or rejects clients that attempt to authenticate too frequently (e.g., once per scrape).
 - **Behavior:** The exporter connects and authenticates *once* at startup. If the connection drops, it automatically attempts to reconnect with exponential backoff.
 
 ### 2. Troubleshooting Authentication
+
 If you see `truenas_up 0` and logs showing "Authentication failed", check the following:
 
 #### `RuntimeError: AUTH: unexpected authenticator run state`
+
 If you see this error in the logs (or server-side), it means the **server-side session state for your API key is corrupted**. This often happens if a client previously hammered the endpoint with rapid connection attempts.
 **Fix:**
-1.  Log into TrueNAS UI.
-2.  Go to **My API Keys**.
-3.  **Delete** the problematic API key.
-4.  **Generate a NEW API key**.
-5.  Update your `.env` or `config.toml` with the new key.
-6.  Restart the exporter.
+
+1. Log into TrueNAS UI.
+2. Go to **My API Keys**.
+3. **Delete** the problematic API key.
+4. **Generate a NEW API key**.
+5. Update your `.env` or `config.toml` with the new key.
+6. Restart the exporter.
 
 #### `[ENOTAUTHENTICATED]`
+
 This is a standard failure. Check that:
+
 - You pasted the API key correctly.
 - The user associated with the key has permission to access the API.
 - You are using `wss://` (TLS) if your server requires it (default for API keys).
