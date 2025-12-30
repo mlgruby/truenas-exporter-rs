@@ -391,6 +391,10 @@ async fn collect_metrics(state: &AppState) -> anyhow::Result<()> {
                 identifier: None,
             });
             queries.push(crate::truenas::types::ReportingQuery {
+                name: "cputemp".to_string(),
+                identifier: None,
+            });
+            queries.push(crate::truenas::types::ReportingQuery {
                 name: "memory".to_string(),
                 identifier: None,
             });
@@ -448,7 +452,19 @@ async fn collect_metrics(state: &AppState) -> anyhow::Result<()> {
                                             }
                                         }
                                     }
+                                    "cputemp" => {
+                                        for (i, label) in res.legend.iter().enumerate() {
+                                            if let Some(Some(val)) = last_point.get(i) {
+                                                state
+                                                    .metrics
+                                                    .system_cpu_temperature_celsius
+                                                    .with_label_values(&[label])
+                                                    .set(*val);
+                                            }
+                                        }
+                                    }
                                     "memory" => {
+                                        let mut available_bytes = 0.0;
                                         for (i, label) in res.legend.iter().enumerate() {
                                             if let Some(Some(val)) = last_point.get(i) {
                                                 state
@@ -456,7 +472,30 @@ async fn collect_metrics(state: &AppState) -> anyhow::Result<()> {
                                                     .system_memory_bytes
                                                     .with_label_values(&[label])
                                                     .set(*val);
+
+                                                // Capture available memory (usually labeled "free" or "available" depending on TrueNAS version,
+                                                // but based on valid labels from curl output, it might be "free" or similar.
+                                                // Actually, common labels are "free", "active", "inactive", "wired".
+                                                // "Available" usually means free + inactive or similar.
+                                                // Let's assume for now we just want to calculate used = total - free.
+                                                // Or if we have a "free" metric, use that.
+                                                // Wait, the user said "memory available but not memory used".
+                                                // The current metric `system_memory_bytes` has labels.
+                                                // In the curl output from earlier: truenas_truenas_system_memory_bytes{state="available"}
+                                                // So there IS a state="available".
+                                                if label == "available" {
+                                                    available_bytes = *val;
+                                                }
                                             }
+                                        }
+
+                                        // Calculate used = total - available
+                                        let total = state.metrics.system_memory_total_bytes.get();
+                                        if total > 0.0 && available_bytes > 0.0 {
+                                            state
+                                                .metrics
+                                                .system_memory_used_bytes
+                                                .set(total - available_bytes);
                                         }
                                     }
                                     "disktemp" => {

@@ -4,12 +4,12 @@ A robust Prometheus metrics exporter for TrueNAS Scale 25.x (Electric Eel) and n
 
 ## Features
 
-- ✅ **WebSocket API Support**: Uses TrueNAS Scale 25.x JSON-RPC 2.0 API (Secure WSS support).
-- ✅ **Storage Monitoring**: ZFS Pools, Datasets, VDevs, and Physical Disks (Smart/Temp/IO).
-- ✅ **Data Protection**: Cloud Sync (status/progress) and Snapshot Task monitoring.
-- ✅ **Service Monitoring**: SMB, NFS, and Application (Apps) status.
-- ✅ **System Health**: Alert monitoring, CPU/Mem/Network stats, and uptime.
-- ✅ **Performance**: Async design using Tokio and Tungstenite.
+- **WebSocket API Support**: Uses TrueNAS Scale 25.x JSON-RPC 2.0 API (Secure WSS support).
+- **Storage Monitoring**: ZFS Pools, Datasets, VDevs, and Physical Disks (Smart/Temp/IO).
+- **Data Protection**: Cloud Sync (status/progress) and Snapshot Task monitoring.
+- **Service Monitoring**: SMB, NFS, and Application (Apps) status.
+- **System Health**: Alert monitoring, CPU/Mem/Network stats, and uptime.
+- **Performance**: Async design using Tokio and Tungstenite.
 
 ## Quick Start
 
@@ -145,6 +145,8 @@ This is a standard failure. Check that:
 
 - `truenas_alert_count` (Active/Dismissed alerts by level)
 - `truenas_system_cpu_usage_percent`, `truenas_system_load_average`
+- `truenas_system_cpu_temperature_celsius` (Per-core/module temp)
+- `truenas_system_memory_used_bytes`, `truenas_system_memory_total_bytes`
 - `truenas_network_rx/tx_bytes_per_second`
 
 ## Limitations / Future Work
