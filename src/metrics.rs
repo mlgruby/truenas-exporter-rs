@@ -84,7 +84,9 @@ pub struct MetricsCollector {
     pub system_info: Arc<IntGauge>,
     pub system_uptime_seconds: Arc<Gauge>,
     pub system_cpu_usage_percent: Arc<GaugeVec>,
+    pub system_cpu_temperature_celsius: Arc<GaugeVec>,
     pub system_memory_bytes: Arc<GaugeVec>,
+    pub system_memory_used_bytes: Arc<Gauge>,
     pub system_memory_total_bytes: Arc<Gauge>,
     pub system_load_average: Arc<GaugeVec>,
     pub up: Arc<Gauge>,
@@ -351,13 +353,27 @@ impl MetricsCollector {
             &["mode"],
         )?;
 
+        let system_cpu_temperature_celsius = GaugeVec::new(
+            Opts::new(
+                "system_cpu_temperature_celsius",
+                "System CPU temperature in Celsius",
+            )
+            .namespace("truenas"),
+            &["cpu"],
+        )?;
+
         let system_memory_bytes = GaugeVec::new(
             Opts::new(
-                "truenas_system_memory_bytes",
+                "system_memory_bytes",
                 "System memory usage in bytes by state",
             )
             .namespace("truenas"),
             &["state"],
+        )?;
+
+        let system_memory_used_bytes = Gauge::new(
+            "truenas_system_memory_used_bytes",
+            "System memory used in bytes (Total - Available)",
         )?;
 
         let system_memory_total_bytes = Gauge::new(
@@ -441,7 +457,9 @@ impl MetricsCollector {
         registry.register(Box::new(system_info.clone()))?;
         registry.register(Box::new(system_uptime_seconds.clone()))?;
         registry.register(Box::new(system_cpu_usage_percent.clone()))?;
+        registry.register(Box::new(system_cpu_temperature_celsius.clone()))?;
         registry.register(Box::new(system_memory_bytes.clone()))?;
+        registry.register(Box::new(system_memory_used_bytes.clone()))?;
         registry.register(Box::new(system_memory_total_bytes.clone()))?;
         registry.register(Box::new(system_load_average.clone()))?;
         registry.register(Box::new(network_interface_info.clone()))?;
@@ -481,7 +499,9 @@ impl MetricsCollector {
             system_info: Arc::new(system_info),
             system_uptime_seconds: Arc::new(system_uptime_seconds),
             system_cpu_usage_percent: Arc::new(system_cpu_usage_percent),
+            system_cpu_temperature_celsius: Arc::new(system_cpu_temperature_celsius),
             system_memory_bytes: Arc::new(system_memory_bytes),
+            system_memory_used_bytes: Arc::new(system_memory_used_bytes),
             system_memory_total_bytes: Arc::new(system_memory_total_bytes),
             system_load_average: Arc::new(system_load_average),
             network_interface_info: Arc::new(network_interface_info),
@@ -539,7 +559,10 @@ impl MetricsCollector {
                                              // Wait, IntGauge/Gauge don't have reset(). The GaugeVec does.
                                              // We should probably just not reset scalar gauges or set them to 0.
         self.system_cpu_usage_percent.reset();
+        self.system_cpu_usage_percent.reset();
+        self.system_cpu_temperature_celsius.reset();
         self.system_memory_bytes.reset();
+        self.system_memory_used_bytes.set(0.0);
         self.system_memory_total_bytes.set(0.0);
         self.system_load_average.reset();
         self.network_interface_info.reset();

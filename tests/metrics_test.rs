@@ -22,6 +22,12 @@ fn test_metrics_registration() {
         output.contains("truenas_system_memory_total_bytes"),
         "Missing total memory metric"
     );
+    assert!(
+        output.contains("truenas_system_memory_used_bytes"),
+        "Missing used memory metric"
+    );
+    // Removed the double prefix check if it was checking for "truenas_truenas_..."
+    // Ideally we should check that "truenas_system_memory_bytes" exists and NOT "truenas_truenas_..."
 }
 
 #[test]
@@ -38,12 +44,21 @@ fn test_metrics_update() {
         .with_label_values(&["test_pool"])
         .set(1000000.0);
 
+    metrics
+        .system_cpu_temperature_celsius
+        .with_label_values(&["0"])
+        .set(45.5);
+
     let rendered = metrics.render().unwrap();
     assert!(
         rendered.contains("truenas_up 1"),
         "up metric not set correctly"
     );
     assert!(rendered.contains("test_pool"), "pool label not found");
+    assert!(
+        rendered.contains("truenas_system_cpu_temperature_celsius"),
+        "CPU temp metric not found"
+    );
 }
 
 #[test]
