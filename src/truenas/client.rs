@@ -127,7 +127,7 @@ impl TrueNasClient {
     }
 
     /// Query SMART test results
-    pub async fn query_smart_tests(&self) -> Result<Vec<SmartTestResult>> {
+    pub async fn query_smart_tests(&self) -> Result<Vec<SmartTestDisk>> {
         self.execute_query("smart.test.results", Some(serde_json::json!([])))
             .await
     }

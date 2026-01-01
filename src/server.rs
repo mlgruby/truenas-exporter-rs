@@ -315,14 +315,39 @@ async fn collect_metrics(state: &AppState) -> anyhow::Result<()> {
 
     // Collect Alerts
     if let Ok(alerts) = state.client.query_alerts().await {
-        // Group alerts by level and active status
+        // Initialize alert counts to 0 for all levels and statuses to ensure
+        // metrics reset if alerts are cleared.
         let mut alert_counts: std::collections::HashMap<(String, bool), f64> =
             std::collections::HashMap::new();
+
+        // Reset detailed alert info metric
+        state.metrics.alert_info.reset();
+
+        let levels = ["CRITICAL", "ERROR", "WARNING", "INFO"];
+        let states = [true, false]; // Active, Dismissed
+
+        for level in levels {
+            for state in states {
+                alert_counts.insert((level.to_string(), state), 0.0);
+            }
+        }
 
         for alert in alerts {
             let active = !alert.dismissed;
             let key = (alert.level.clone(), active);
             *alert_counts.entry(key).or_insert(0.0) += 1.0;
+
+            // Populate detailed alert info
+            state
+                .metrics
+                .alert_info
+                .with_label_values(&[
+                    &alert.level,
+                    &alert.formatted,
+                    &alert.uuid,
+                    &(if active { "true" } else { "false" }).to_string(),
+                ])
+                .set(1.0);
         }
 
         for ((level, active), count) in alert_counts {
@@ -614,22 +639,62 @@ async fn collect_metrics(state: &AppState) -> anyhow::Result<()> {
         }
     }
 
-    // Collect SMART test results
     match state.client.query_smart_tests().await {
-        Ok(tests) => {
+        Ok(disks) => {
             any_success = true;
-            for test in tests {
-                // 0 = success, 1 = failed
-                let status_value = if test.status.to_uppercase() == "SUCCESS" {
-                    0
-                } else {
-                    1
-                };
-                state
-                    .metrics
-                    .smart_test_status
-                    .with_label_values(&[&test.disk, &test.test_type])
-                    .set(status_value);
+
+            for disk in disks {
+                let disk_name = disk.name.clone();
+
+                // Group tests by description (which acts as test type, e.g. "Extended offline")
+                // and keep the one with the highest lifetime.
+                let mut latest_tests: std::collections::HashMap<
+                    String,
+                    crate::truenas::types::SmartTestEntry,
+                > = std::collections::HashMap::new();
+
+                for test in disk.tests {
+                    // Use description as the test type key
+                    let key = test.description.clone();
+                    match latest_tests.entry(key) {
+                        std::collections::hash_map::Entry::Vacant(e) => {
+                            e.insert(test);
+                        }
+                        std::collections::hash_map::Entry::Occupied(mut e) => {
+                            if test.lifetime > e.get().lifetime {
+                                e.insert(test);
+                            }
+                        }
+                    }
+                }
+
+                for (test_type, test) in latest_tests {
+                    let status_str = test.status.to_uppercase();
+                    let status_value = if status_str == "SUCCESS"
+                        || status_str == "COMPLETED WITHOUT ERROR"
+                        || status_str == "RUNNING"
+                    {
+                        0
+                    } else {
+                        warn!(
+                            "SMART test failure/unknown status for disk {} ({}): {}",
+                            disk_name, test_type, status_str
+                        );
+                        1
+                    };
+
+                    state
+                        .metrics
+                        .smart_test_status
+                        .with_label_values(&[&disk_name, &test_type])
+                        .set(status_value);
+
+                    state
+                        .metrics
+                        .smart_test_lifetime_hours
+                        .with_label_values(&[&disk_name, &test_type])
+                        .set(test.lifetime as f64);
+                }
             }
             info!("Updated SMART test metrics");
         }
