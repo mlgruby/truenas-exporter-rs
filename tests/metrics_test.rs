@@ -59,6 +59,18 @@ fn test_metrics_update() {
         rendered.contains("truenas_system_cpu_temperature_celsius"),
         "CPU temp metric not found"
     );
+
+    // Test new SMART metric
+    metrics
+        .smart_test_lifetime_hours
+        .with_label_values(&["sda", "long"])
+        .set(12345.0);
+
+    let rendered_smart = metrics.render().unwrap();
+    assert!(
+        rendered_smart.contains("truenas_smart_test_lifetime_hours"),
+        "SMART lifetime metric not found"
+    );
 }
 
 #[test]

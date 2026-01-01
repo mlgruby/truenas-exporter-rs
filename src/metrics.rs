@@ -64,6 +64,7 @@ pub struct MetricsCollector {
     pub cloud_sync_progress: Arc<GaugeVec>,
     pub snapshot_task_status: Arc<GaugeVec>,
     pub alert_count: Arc<GaugeVec>,
+    pub alert_info: Arc<GaugeVec>,
 
     // Disk metrics
     pub disk_temperature_celsius: Arc<GaugeVec>,
@@ -73,6 +74,7 @@ pub struct MetricsCollector {
 
     // SMART metrics
     pub smart_test_status: Arc<IntGaugeVec>,
+    pub smart_test_lifetime_hours: Arc<GaugeVec>,
 
     // Application metrics
     pub app_status: Arc<IntGaugeVec>,
@@ -106,17 +108,14 @@ impl MetricsCollector {
 
         // Pool metrics
         let pool_health = GaugeVec::new(
-            Opts::new(
-                "truenas_pool_health",
-                "Pool health status (1=healthy, 0=unhealthy)",
-            )
-            .namespace("truenas"),
+            Opts::new("pool_health", "Pool health status (1=healthy, 0=unhealthy)")
+                .namespace("truenas"),
             &["pool", "status"],
         )?;
 
         let pool_capacity_bytes = GaugeVec::new(
             Opts::new(
-                "truenas_pool_capacity_bytes",
+                "pool_capacity_bytes",
                 "Total storage capacity of the ZFS pool",
             )
             .namespace("truenas"),
@@ -125,7 +124,7 @@ impl MetricsCollector {
 
         let pool_allocated_bytes = GaugeVec::new(
             Opts::new(
-                "truenas_pool_allocated_bytes",
+                "pool_allocated_bytes",
                 "Used storage capacity of the ZFS pool",
             )
             .namespace("truenas"),
@@ -133,26 +132,20 @@ impl MetricsCollector {
         )?;
 
         let pool_free_bytes = GaugeVec::new(
-            Opts::new(
-                "truenas_pool_free_bytes",
-                "Free storage capacity of the ZFS pool",
-            )
-            .namespace("truenas"),
+            Opts::new("pool_free_bytes", "Free storage capacity of the ZFS pool")
+                .namespace("truenas"),
             &["pool"],
         )?;
 
         let pool_last_scrub_seconds = GaugeVec::new(
-            Opts::new(
-                "truenas_pool_last_scrub_seconds",
-                "Timestamp of the last ZFS scrub",
-            )
-            .namespace("truenas"),
+            Opts::new("pool_last_scrub_seconds", "Timestamp of the last ZFS scrub")
+                .namespace("truenas"),
             &["pool"],
         )?;
 
         let pool_scrub_errors = GaugeVec::new(
             Opts::new(
-                "truenas_pool_scrub_errors",
+                "pool_scrub_errors",
                 "Number of errors found during last ZFS scrub",
             )
             .namespace("truenas"),
@@ -161,7 +154,7 @@ impl MetricsCollector {
 
         let pool_vdev_error_count = GaugeVec::new(
             Opts::new(
-                "truenas_pool_vdev_error_count",
+                "pool_vdev_error_count",
                 "ZFS vdev error counts (read/write/checksum)",
             )
             .namespace("truenas"),
@@ -170,23 +163,19 @@ impl MetricsCollector {
 
         // Dataset metrics
         let dataset_used_bytes = GaugeVec::new(
-            Opts::new("truenas_dataset_used_bytes", "Used bytes of the dataset")
-                .namespace("truenas"),
+            Opts::new("dataset_used_bytes", "Used bytes of the dataset").namespace("truenas"),
             &["dataset", "pool"],
         )?;
 
         let dataset_available_bytes = GaugeVec::new(
-            Opts::new(
-                "truenas_dataset_available_bytes",
-                "Available bytes for the dataset",
-            )
-            .namespace("truenas"),
+            Opts::new("dataset_available_bytes", "Available bytes for the dataset")
+                .namespace("truenas"),
             &["dataset", "pool"],
         )?;
 
         let dataset_compression_ratio = GaugeVec::new(
             Opts::new(
-                "truenas_dataset_compression_ratio",
+                "dataset_compression_ratio",
                 "Compression ratio of the dataset",
             )
             .namespace("truenas"),
@@ -195,7 +184,7 @@ impl MetricsCollector {
 
         let dataset_encrypted = GaugeVec::new(
             Opts::new(
-                "truenas_dataset_encrypted",
+                "dataset_encrypted",
                 "Encryption status of the dataset (1=encrypted, 0=unencrypted)",
             )
             .namespace("truenas"),
@@ -205,7 +194,7 @@ impl MetricsCollector {
         // Share metrics
         let share_smb_enabled = GaugeVec::new(
             Opts::new(
-                "truenas_share_smb_enabled",
+                "share_smb_enabled",
                 "SMB Share Status (1=Enabled, 0=Disabled)",
             )
             .namespace("truenas"),
@@ -213,7 +202,7 @@ impl MetricsCollector {
         )?;
         let share_nfs_enabled = GaugeVec::new(
             Opts::new(
-                "truenas_share_nfs_enabled",
+                "share_nfs_enabled",
                 "NFS Share Status (1=Enabled, 0=Disabled)",
             )
             .namespace("truenas"),
@@ -222,42 +211,45 @@ impl MetricsCollector {
 
         // Data Protection metrics
         let cloud_sync_status = GaugeVec::new(
-            Opts::new(
-                "truenas_cloud_sync_status",
-                "Cloud Sync Task Status (1=Active)",
-            )
-            .namespace("truenas"),
+            Opts::new("cloud_sync_status", "Cloud Sync Task Status (1=Active)")
+                .namespace("truenas"),
             &["description", "state"],
         )?;
         let cloud_sync_progress = GaugeVec::new(
             Opts::new(
-                "truenas_cloud_sync_progress_percent",
+                "cloud_sync_progress_percent",
                 "Cloud Sync Progress Percentage",
             )
             .namespace("truenas"),
             &["description"],
         )?;
         let snapshot_task_status = GaugeVec::new(
-            Opts::new(
-                "truenas_snapshot_task_status",
-                "Snapshot Task Status (1=Active)",
-            )
-            .namespace("truenas"),
+            Opts::new("snapshot_task_status", "Snapshot Task Status (1=Active)")
+                .namespace("truenas"),
             &["dataset", "state"],
         )?;
         let alert_count = GaugeVec::new(
             Opts::new(
-                "truenas_alert_count",
+                "alert_count",
                 "Number of system alerts by severity and status",
             )
             .namespace("truenas"),
             &["level", "active"],
         )?;
 
+        let alert_info = GaugeVec::new(
+            Opts::new(
+                "alert_info",
+                "Detailed alert information (value is always 1)",
+            )
+            .namespace("truenas"),
+            &["level", "message", "uuid", "active"],
+        )?;
+
         // Disk metrics
         let disk_temperature_celsius = GaugeVec::new(
             Opts::new(
-                "truenas_disk_temperature_celsius",
+                "disk_temperature_celsius",
                 "Current temperature of the disk in Celsius",
             )
             .namespace("truenas"),
@@ -266,7 +258,7 @@ impl MetricsCollector {
 
         let disk_read_bytes_per_second = GaugeVec::new(
             Opts::new(
-                "truenas_disk_read_bytes_per_second",
+                "disk_read_bytes_per_second",
                 "Disk read rate in bytes per second",
             )
             .namespace("truenas"),
@@ -275,7 +267,7 @@ impl MetricsCollector {
 
         let disk_write_bytes_per_second = GaugeVec::new(
             Opts::new(
-                "truenas_disk_write_bytes_per_second",
+                "disk_write_bytes_per_second",
                 "Disk write rate in bytes per second",
             )
             .namespace("truenas"),
@@ -283,16 +275,24 @@ impl MetricsCollector {
         )?;
 
         let disk_info = IntGaugeVec::new(
-            Opts::new("truenas_disk_info", "Disk information (value is always 1)")
-                .namespace("truenas"),
+            Opts::new("disk_info", "Disk information (value is always 1)").namespace("truenas"),
             &["disk", "serial", "model", "size"],
         )?;
 
         // SMART metrics
         let smart_test_status = IntGaugeVec::new(
             Opts::new(
-                "truenas_smart_test_status",
+                "smart_test_status",
                 "SMART test status (0=success, 1=failed)",
+            )
+            .namespace("truenas"),
+            &["disk", "test_type"],
+        )?;
+
+        let smart_test_lifetime_hours = GaugeVec::new(
+            Opts::new(
+                "smart_test_lifetime_hours",
+                "Disk lifetime hours when the last SMART test was run",
             )
             .namespace("truenas"),
             &["disk", "test_type"],
@@ -300,35 +300,24 @@ impl MetricsCollector {
 
         // Application metrics
         let app_status = IntGaugeVec::new(
-            Opts::new(
-                "truenas_app_status",
-                "Application status (0=stopped, 1=running)",
-            )
-            .namespace("truenas"),
+            Opts::new("app_status", "Application status (0=stopped, 1=running)")
+                .namespace("truenas"),
             &["app"],
         )?;
 
         let app_cpu_percent = GaugeVec::new(
-            Opts::new(
-                "truenas_app_cpu_percent",
-                "Application CPU usage percentage",
-            )
-            .namespace("truenas"),
+            Opts::new("app_cpu_percent", "Application CPU usage percentage").namespace("truenas"),
             &["app"],
         )?;
 
         let app_memory_bytes = GaugeVec::new(
-            Opts::new(
-                "truenas_app_memory_bytes",
-                "Application memory usage in bytes",
-            )
-            .namespace("truenas"),
+            Opts::new("app_memory_bytes", "Application memory usage in bytes").namespace("truenas"),
             &["app"],
         )?;
 
         let app_update_available = IntGaugeVec::new(
             Opts::new(
-                "truenas_app_update_available",
+                "app_update_available",
                 "Application update available (0=no, 1=yes)",
             )
             .namespace("truenas"),
@@ -346,7 +335,7 @@ impl MetricsCollector {
 
         let system_cpu_usage_percent = GaugeVec::new(
             Opts::new(
-                "truenas_system_cpu_usage_percent",
+                "system_cpu_usage_percent",
                 "System CPU usage percentage by mode",
             )
             .namespace("truenas"),
@@ -382,13 +371,13 @@ impl MetricsCollector {
         )?;
 
         let system_load_average = GaugeVec::new(
-            Opts::new("truenas_system_load_average", "System load average").namespace("truenas"),
+            Opts::new("system_load_average", "System load average").namespace("truenas"),
             &["period"],
         )?;
 
         let network_interface_info = IntGaugeVec::new(
             Opts::new(
-                "truenas_network_interface_info",
+                "network_interface_info",
                 "Network interface information (value is always 1)",
             )
             .namespace("truenas"),
@@ -397,7 +386,7 @@ impl MetricsCollector {
 
         let network_receive_bytes_per_second = GaugeVec::new(
             Opts::new(
-                "truenas_network_receive_bytes_per_second",
+                "network_receive_bytes_per_second",
                 "Network receive rate in bytes per second",
             )
             .namespace("truenas"),
@@ -406,7 +395,7 @@ impl MetricsCollector {
 
         let network_transmit_bytes_per_second = GaugeVec::new(
             Opts::new(
-                "truenas_network_transmit_bytes_per_second",
+                "network_transmit_bytes_per_second",
                 "Network transmit rate in bytes per second",
             )
             .namespace("truenas"),
@@ -414,11 +403,8 @@ impl MetricsCollector {
         )?;
 
         let service_status = IntGaugeVec::new(
-            Opts::new(
-                "truenas_service_status",
-                "Service status (0=stopped, 1=running)",
-            )
-            .namespace("truenas"),
+            Opts::new("service_status", "Service status (0=stopped, 1=running)")
+                .namespace("truenas"),
             &["service"],
         )?;
 
@@ -445,11 +431,13 @@ impl MetricsCollector {
         registry.register(Box::new(cloud_sync_progress.clone()))?;
         registry.register(Box::new(snapshot_task_status.clone()))?;
         registry.register(Box::new(alert_count.clone()))?;
+        registry.register(Box::new(alert_info.clone()))?;
         registry.register(Box::new(disk_temperature_celsius.clone()))?;
         registry.register(Box::new(disk_read_bytes_per_second.clone()))?;
         registry.register(Box::new(disk_write_bytes_per_second.clone()))?;
         registry.register(Box::new(disk_info.clone()))?;
         registry.register(Box::new(smart_test_status.clone()))?;
+        registry.register(Box::new(smart_test_lifetime_hours.clone()))?; // Register new metric
         registry.register(Box::new(app_status.clone()))?;
         registry.register(Box::new(app_cpu_percent.clone()))?;
         registry.register(Box::new(app_memory_bytes.clone()))?;
@@ -487,11 +475,13 @@ impl MetricsCollector {
             cloud_sync_progress: Arc::new(cloud_sync_progress),
             snapshot_task_status: Arc::new(snapshot_task_status),
             alert_count: Arc::new(alert_count),
+            alert_info: Arc::new(alert_info),
             disk_temperature_celsius: Arc::new(disk_temperature_celsius),
             disk_read_bytes_per_second: Arc::new(disk_read_bytes_per_second),
             disk_write_bytes_per_second: Arc::new(disk_write_bytes_per_second),
             disk_info: Arc::new(disk_info),
             smart_test_status: Arc::new(smart_test_status),
+            smart_test_lifetime_hours: Arc::new(smart_test_lifetime_hours), // Added
             app_status: Arc::new(app_status),
             app_cpu_percent: Arc::new(app_cpu_percent),
             app_memory_bytes: Arc::new(app_memory_bytes),
@@ -541,6 +531,7 @@ impl MetricsCollector {
         self.cloud_sync_progress.reset();
         self.snapshot_task_status.reset();
         self.alert_count.reset();
+        self.alert_info.reset();
         self.disk_temperature_celsius.reset();
         self.disk_read_bytes_per_second.reset();
         self.disk_write_bytes_per_second.reset();
