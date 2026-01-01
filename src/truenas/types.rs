@@ -273,24 +273,29 @@ pub struct DiskTemperature {
     pub temperatures: std::collections::HashMap<String, Option<f64>>,
 }
 
-/// SMART test result from smart.test.results
-#[derive(Debug, Deserialize)]
-pub struct SmartTestResult {
-    pub disk: String,
-    #[serde(rename = "type", default)]
-    pub test_type: String,
-    #[serde(default)]
-    pub status: String,
+/// SMART test entry within a disk
+#[derive(Debug, Deserialize, Clone)]
+pub struct SmartTestEntry {
     #[serde(default)]
     pub num: i32,
     #[serde(default)]
-    pub description: String,
+    pub description: String, // e.g. "Extended offline"
     #[serde(default)]
-    pub remaining: f64,
+    pub status: String,
     #[serde(default)]
     pub lifetime: i64,
     #[serde(default)]
-    pub lba_of_first_error: Option<String>,
+    pub remaining: f64,
+}
+
+/// SMART test disk information from smart.test.results
+#[derive(Debug, Deserialize, Clone)]
+pub struct SmartTestDisk {
+    pub name: String,
+    #[serde(rename = "type")] // e.g. "HDD" or "SSD"
+    pub drive_type: Option<String>,
+    #[serde(default)]
+    pub tests: Vec<SmartTestEntry>,
 }
 
 /// Application information from app.query
