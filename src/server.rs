@@ -317,8 +317,9 @@ async fn collect_metrics(state: &AppState) -> anyhow::Result<()> {
     if let Ok(alerts) = state.client.query_alerts().await {
         // Initialize alert counts to 0 for all levels and statuses to ensure
         // metrics reset if alerts are cleared.
+        // Pre-size for 4 levels × 2 states = 8 entries to reduce allocations
         let mut alert_counts: std::collections::HashMap<(String, bool), f64> =
-            std::collections::HashMap::new();
+            std::collections::HashMap::with_capacity(8);
 
         // Reset detailed alert info metric
         state.metrics.alert_info.reset();
@@ -408,7 +409,8 @@ async fn collect_metrics(state: &AppState) -> anyhow::Result<()> {
     // Collect reporting metrics (CPU, Memory, Disk Temp)
     match state.client.query_reporting_graphs().await {
         Ok(graphs) => {
-            let mut queries = Vec::new();
+            // Pre-size for typical case: 3 base queries + ~10 disks + ~5 interfaces
+            let mut queries = Vec::with_capacity(20);
 
             // Add CPU and Memory queries
             queries.push(crate::truenas::types::ReportingQuery {
@@ -648,10 +650,11 @@ async fn collect_metrics(state: &AppState) -> anyhow::Result<()> {
 
                 // Group tests by description (which acts as test type, e.g. "Extended offline")
                 // and keep the one with the highest lifetime.
+                // Pre-size for typical case: 2-4 test types per disk
                 let mut latest_tests: std::collections::HashMap<
                     String,
                     crate::truenas::types::SmartTestEntry,
-                > = std::collections::HashMap::new();
+                > = std::collections::HashMap::with_capacity(4);
 
                 for test in disk.tests {
                     // Use description as the test type key
