@@ -307,7 +307,7 @@ pub struct AppInfo {
     pub version: String,
     #[serde(default)]
     pub human_version: String,
-    #[serde(default)]
+    #[serde(default, rename = "upgrade_available")]
     pub update_available: bool,
     #[serde(default)]
     pub portal: Option<String>,
