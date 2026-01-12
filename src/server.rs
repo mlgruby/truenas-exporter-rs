@@ -704,6 +704,29 @@ async fn collect_metrics(state: &AppState) -> anyhow::Result<()> {
                         .smart_test_lifetime_hours
                         .with_label_values(&[&disk_name, &test_type])
                         .set(test.lifetime as f64);
+
+                    // Calculate and set test timestamp if power_on_hours_ago is available
+                    if let Some(hours_ago) = test.power_on_hours_ago {
+                        let now = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs() as f64;
+                        let test_timestamp = now - (hours_ago as f64 * 3600.0);
+
+                        state
+                            .metrics
+                            .smart_test_timestamp_seconds
+                            .with_label_values(&[&disk_name, &test_type])
+                            .set(test_timestamp);
+
+                        // Calculate current disk power-on hours
+                        let current_disk_hours = test.lifetime + hours_ago;
+                        state
+                            .metrics
+                            .disk_power_on_hours
+                            .with_label_values(&[&disk_name])
+                            .set(current_disk_hours as f64);
+                    }
                 }
             }
             info!("Updated SMART test metrics");
