@@ -279,6 +279,10 @@ async fn collect_metrics(state: &AppState) -> anyhow::Result<()> {
 
     // Collect Data Protection Metrics (Cloud Sync, Snapshots)
     if let Ok(tasks) = state.client.query_cloud_sync_tasks().await {
+        // Reset metrics to clear stale state labels
+        state.metrics.cloud_sync_status.reset();
+        state.metrics.cloud_sync_progress.reset();
+
         for task in tasks {
             if let Some(job) = &task.job {
                 state
@@ -301,6 +305,9 @@ async fn collect_metrics(state: &AppState) -> anyhow::Result<()> {
     }
 
     if let Ok(tasks) = state.client.query_snapshot_tasks().await {
+        // Reset metric to clear stale state labels (e.g., RUNNING -> FINISHED transitions)
+        state.metrics.snapshot_task_status.reset();
+
         for task in tasks {
             if let Some(st) = &task.state {
                 state
