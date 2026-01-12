@@ -286,6 +286,8 @@ pub struct SmartTestEntry {
     pub lifetime: i64,
     #[serde(default)]
     pub remaining: f64,
+    #[serde(default)]
+    pub power_on_hours_ago: Option<i64>, // Hours ago when this test ran
 }
 
 /// SMART test disk information from smart.test.results
