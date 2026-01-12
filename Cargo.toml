@@ -1,6 +1,6 @@
 [package]
 name = "truenas-exporter"
-version = "0.5.3"
+version = "0.5.4"
 edition = "2021"
 authors = ["Satyasheel"]
 description = "Prometheus exporter for TrueNAS Scale metrics"
@@ -27,7 +27,7 @@ axum = "0.8"
 prometheus = "0.14"
 
 # Configuration
-config = "0.14"
+config = "0.15"
 dotenvy = "0.15"
 
 # Error handling
@@ -43,7 +43,7 @@ clap = { version = "4.5", features = ["derive", "env"] }
 secrecy = { version = "0.10.3", features = ["serde"] }
 
 [dev-dependencies]
-mockito = "1.6"
+#mockito = "1.6"
 
 [profile.release]
 opt-level = 3

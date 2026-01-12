@@ -75,6 +75,8 @@ pub struct MetricsCollector {
     // SMART metrics
     pub smart_test_status: Arc<IntGaugeVec>,
     pub smart_test_lifetime_hours: Arc<GaugeVec>,
+    pub smart_test_timestamp_seconds: Arc<GaugeVec>,
+    pub disk_power_on_hours: Arc<GaugeVec>,
 
     // Application metrics
     pub app_status: Arc<IntGaugeVec>,
@@ -298,6 +300,21 @@ impl MetricsCollector {
             &["disk", "test_type"],
         )?;
 
+        let smart_test_timestamp_seconds = GaugeVec::new(
+            Opts::new(
+                "smart_test_timestamp_seconds",
+                "Unix timestamp when the last SMART test was run",
+            )
+            .namespace("truenas"),
+            &["disk", "test_type"],
+        )?;
+
+        let disk_power_on_hours = GaugeVec::new(
+            Opts::new("disk_power_on_hours", "Total power-on hours for the disk")
+                .namespace("truenas"),
+            &["disk"],
+        )?;
+
         // Application metrics
         let app_status = IntGaugeVec::new(
             Opts::new("app_status", "Application status (0=stopped, 1=running)")
@@ -437,7 +454,9 @@ impl MetricsCollector {
         registry.register(Box::new(disk_write_bytes_per_second.clone()))?;
         registry.register(Box::new(disk_info.clone()))?;
         registry.register(Box::new(smart_test_status.clone()))?;
-        registry.register(Box::new(smart_test_lifetime_hours.clone()))?; // Register new metric
+        registry.register(Box::new(smart_test_lifetime_hours.clone()))?;
+        registry.register(Box::new(smart_test_timestamp_seconds.clone()))?;
+        registry.register(Box::new(disk_power_on_hours.clone()))?;
         registry.register(Box::new(app_status.clone()))?;
         registry.register(Box::new(app_cpu_percent.clone()))?;
         registry.register(Box::new(app_memory_bytes.clone()))?;
@@ -481,7 +500,9 @@ impl MetricsCollector {
             disk_write_bytes_per_second: Arc::new(disk_write_bytes_per_second),
             disk_info: Arc::new(disk_info),
             smart_test_status: Arc::new(smart_test_status),
-            smart_test_lifetime_hours: Arc::new(smart_test_lifetime_hours), // Added
+            smart_test_lifetime_hours: Arc::new(smart_test_lifetime_hours),
+            smart_test_timestamp_seconds: Arc::new(smart_test_timestamp_seconds),
+            disk_power_on_hours: Arc::new(disk_power_on_hours),
             app_status: Arc::new(app_status),
             app_cpu_percent: Arc::new(app_cpu_percent),
             app_memory_bytes: Arc::new(app_memory_bytes),
