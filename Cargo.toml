@@ -1,6 +1,6 @@
 [package]
 name = "truenas-exporter"
-version = "0.5.4"
+version = "0.5.5"
 edition = "2021"
 authors = ["Satyasheel"]
 description = "Prometheus exporter for TrueNAS Scale metrics"
@@ -9,8 +9,8 @@ repository = "https://github.com/mlgruby/truenas-exporter-rs"
 readme = "README.md"
 
 [dependencies]
-# Async runtime
-tokio = { version = "1.48", features = ["full"] }
+# Async runtime - minimal features for memory efficiency
+tokio = { version = "1.48", features = ["rt-multi-thread", "macros", "net", "time", "sync"] }
 
 # WebSocket client
 tokio-tungstenite = { version = "0.28", features = ["native-tls"] }
@@ -43,10 +43,19 @@ clap = { version = "4.5", features = ["derive", "env"] }
 secrecy = { version = "0.10.3", features = ["serde"] }
 
 [dev-dependencies]
-#mockito = "1.6"
+proptest = "1.5"
 
 [profile.release]
 opt-level = 3
 lto = true
 codegen-units = 1
 strip = true
+
+# Memory-optimized release profile for homelab deployments
+[profile.release-memory]
+inherits = "release"
+opt-level = "z"  # Optimize for size (also reduces memory)
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"  # Smaller binary, less memory overhead

@@ -26,6 +26,7 @@
 //! Individual API failures are logged as warnings but don't stop the collection loop.
 //! This ensures partial metrics are still exposed even if some APIs are unavailable.
 
+use crate::collectors::{self, CollectionContext, CollectionStatus};
 use crate::config::Config;
 use crate::metrics::MetricsCollector;
 use crate::truenas::TrueNasClient;
@@ -35,41 +36,9 @@ use axum::{
     routing::get,
     Router,
 };
-use serde_json;
 use std::sync::Arc;
 use tokio::time::{interval, Duration};
-use tracing::{error, info, warn}; // Added for serde_json::Value
-
-// Helper function to recursively collect VDev stats
-fn collect_vdev_stats(
-    pool_name: &str,
-    vdev: &crate::truenas::types::VDev,
-    metrics: &MetricsCollector,
-) {
-    let name = vdev
-        .disk
-        .as_deref()
-        .or(vdev.device.as_deref())
-        .unwrap_or(&vdev.name);
-
-    if let Some(stats) = &vdev.stats {
-        metrics
-            .pool_vdev_error_count
-            .with_label_values(&[pool_name, name, "read"])
-            .set(stats.read_errors as f64);
-        metrics
-            .pool_vdev_error_count
-            .with_label_values(&[pool_name, name, "write"])
-            .set(stats.write_errors as f64);
-        metrics
-            .pool_vdev_error_count
-            .with_label_values(&[pool_name, name, "checksum"])
-            .set(stats.checksum_errors as f64);
-    }
-    for child in &vdev.children {
-        collect_vdev_stats(pool_name, child, metrics);
-    }
-}
+use tracing::{error, info};
 
 #[derive(Clone)]
 struct AppState {
@@ -133,682 +102,58 @@ async fn collect_metrics_loop(state: AppState) {
 async fn collect_metrics(state: &AppState) -> anyhow::Result<()> {
     info!("Collecting metrics from TrueNAS");
 
+    let ctx = CollectionContext {
+        client: &state.client,
+        metrics: &state.metrics,
+        config: &state.config.metrics,
+    };
+
     let mut any_success = false;
+
+    // Helper macro to track success
+    macro_rules! collect {
+        ($collector:expr) => {
+            match $collector.await? {
+                CollectionStatus::Success => any_success = true,
+                CollectionStatus::Failed => { /* Already logged */ }
+            }
+        };
+    }
 
     // Collect pool metrics
     if state.config.metrics.collect_pool_metrics {
-        match state.client.query_pools().await {
-            Ok(pools) => {
-                any_success = true;
-                for pool in pools {
-                    let health_value = if pool.healthy { 1.0 } else { 0.0 };
-
-                    state
-                        .metrics
-                        .pool_health
-                        .with_label_values(&[&pool.name, &pool.status])
-                        .set(health_value);
-
-                    state
-                        .metrics
-                        .pool_capacity_bytes
-                        .with_label_values(&[&pool.name])
-                        .set(pool.size as f64);
-
-                    state
-                        .metrics
-                        .pool_allocated_bytes
-                        .with_label_values(&[&pool.name])
-                        .set(pool.allocated as f64);
-
-                    state
-                        .metrics
-                        .pool_free_bytes
-                        .with_label_values(&[&pool.name])
-                        .set(pool.free as f64);
-
-                    // Collect Scan Stats (Errors & Last Scrub)
-                    if let Some(scan) = &pool.scan {
-                        state
-                            .metrics
-                            .pool_scrub_errors
-                            .with_label_values(&[&pool.name])
-                            .set(scan.errors.unwrap_or(0) as f64);
-
-                        if let Some(serde_json::Value::Object(map)) = &scan.end_time {
-                            if let Some(serde_json::Value::Number(num)) = map.get("$date") {
-                                if let Some(millis) = num.as_u64() {
-                                    state
-                                        .metrics
-                                        .pool_last_scrub_seconds
-                                        .with_label_values(&[&pool.name])
-                                        .set((millis / 1000) as f64);
-                                }
-                            }
-                        }
-                    }
-
-                    // Collect VDev Errors (Recursive)
-                    if let Some(topology) = &pool.topology {
-                        for vdev in &topology.data {
-                            collect_vdev_stats(&pool.name, vdev, &state.metrics);
-                        }
-                    }
-
-                    info!(
-                        "Updated metrics for pool: {} (status: {}, healthy: {})",
-                        pool.name, pool.status, pool.healthy
-                    );
-                }
-            }
-            Err(e) => {
-                warn!("Failed to query pools: {}", e);
-            }
-        }
+        collect!(collectors::collect_pool_metrics(&ctx));
+        collect!(collectors::collect_dataset_metrics(&ctx));
     }
 
-    // Collect Dataset Metrics
-    match state.client.query_datasets().await {
-        Ok(datasets) => {
-            for dataset in datasets {
-                let pool_name = dataset.name.split('/').next().unwrap_or(&dataset.name);
+    // Collect share metrics
+    collect!(collectors::collect_share_metrics(&ctx));
 
-                if let Some(used) = &dataset.used {
-                    state
-                        .metrics
-                        .dataset_used_bytes
-                        .with_label_values(&[dataset.name.as_str(), pool_name])
-                        .set(used.parsed as f64);
-                }
-                if let Some(avail) = &dataset.available {
-                    state
-                        .metrics
-                        .dataset_available_bytes
-                        .with_label_values(&[dataset.name.as_str(), pool_name])
-                        .set(avail.parsed as f64);
-                }
-                if let Some(ratio) = &dataset.compressratio {
-                    if let Ok(val) = ratio.parsed.parse::<f64>() {
-                        state
-                            .metrics
-                            .dataset_compression_ratio
-                            .with_label_values(&[dataset.name.as_str(), pool_name])
-                            .set(val);
-                    }
-                }
-                state
-                    .metrics
-                    .dataset_encrypted
-                    .with_label_values(&[dataset.name.as_str(), pool_name])
-                    .set(if dataset.encrypted { 1.0 } else { 0.0 });
-            }
-            info!("Updated dataset metrics");
-        }
-        Err(e) => {
-            warn!("Failed to query datasets: {}", e);
-        }
-    }
+    // Collect data protection metrics
+    collect!(collectors::collect_cloud_sync_metrics(&ctx));
+    collect!(collectors::collect_snapshot_metrics(&ctx));
 
-    // Collect Share Metrics
-    match state.client.query_smb_shares().await {
-        Ok(shares) => {
-            for share in shares {
-                state
-                    .metrics
-                    .share_smb_enabled
-                    .with_label_values(&[&share.name, &share.path])
-                    .set(if share.enabled { 1.0 } else { 0.0 });
-            }
-        }
-        Err(e) => warn!("Failed to query SMB shares: {}", e),
-    }
-
-    match state.client.query_nfs_shares().await {
-        Ok(shares) => {
-            for share in shares {
-                state
-                    .metrics
-                    .share_nfs_enabled
-                    .with_label_values(&[&share.path])
-                    .set(if share.enabled { 1.0 } else { 0.0 });
-            }
-        }
-        Err(e) => warn!("Failed to query NFS shares: {}", e),
-    }
-    info!("Updated share metrics");
-
-    // Collect Data Protection Metrics (Cloud Sync, Snapshots)
-    if let Ok(tasks) = state.client.query_cloud_sync_tasks().await {
-        // Reset metrics to clear stale state labels
-        state.metrics.cloud_sync_status.reset();
-        state.metrics.cloud_sync_progress.reset();
-
-        for task in tasks {
-            if let Some(job) = &task.job {
-                state
-                    .metrics
-                    .cloud_sync_status
-                    .with_label_values(&[&task.description, &job.state])
-                    .set(1.0);
-
-                if let Some(progress) = &job.progress {
-                    if let Some(pct) = progress.percent {
-                        state
-                            .metrics
-                            .cloud_sync_progress
-                            .with_label_values(&[&task.description])
-                            .set(pct);
-                    }
-                }
-            }
-        }
-    }
-
-    if let Ok(tasks) = state.client.query_snapshot_tasks().await {
-        // Reset metric to clear stale state labels (e.g., RUNNING -> FINISHED transitions)
-        state.metrics.snapshot_task_status.reset();
-
-        for task in tasks {
-            if let Some(st) = &task.state {
-                state
-                    .metrics
-                    .snapshot_task_status
-                    .with_label_values(&[&task.dataset, &st.state])
-                    .set(1.0);
-            }
-        }
-    }
-    info!("Updated data protection metrics");
-
-    // Collect Alerts
-    if let Ok(alerts) = state.client.query_alerts().await {
-        // Initialize alert counts to 0 for all levels and statuses to ensure
-        // metrics reset if alerts are cleared.
-        // Pre-size for 4 levels × 2 states = 8 entries to reduce allocations
-        let mut alert_counts: std::collections::HashMap<(String, bool), f64> =
-            std::collections::HashMap::with_capacity(8);
-
-        // Reset detailed alert info metric
-        state.metrics.alert_info.reset();
-
-        let levels = ["CRITICAL", "ERROR", "WARNING", "INFO"];
-        let states = [true, false]; // Active, Dismissed
-
-        for level in levels {
-            for state in states {
-                alert_counts.insert((level.to_string(), state), 0.0);
-            }
-        }
-
-        for alert in alerts {
-            let active = !alert.dismissed;
-            let key = (alert.level.clone(), active);
-            *alert_counts.entry(key).or_insert(0.0) += 1.0;
-
-            // Populate detailed alert info
-            state
-                .metrics
-                .alert_info
-                .with_label_values(&[
-                    &alert.level,
-                    &alert.formatted,
-                    &alert.uuid,
-                    &(if active { "true" } else { "false" }).to_string(),
-                ])
-                .set(1.0);
-        }
-
-        for ((level, active), count) in alert_counts {
-            state
-                .metrics
-                .alert_count
-                .with_label_values(&[level.as_str(), if active { "true" } else { "false" }])
-                .set(count);
-        }
-    }
-    info!("Updated alert metrics");
+    // Collect alerts
+    collect!(collectors::collect_alert_metrics(&ctx));
 
     // Collect system metrics
     if state.config.metrics.collect_system_metrics {
-        match state.client.query_system_info().await {
-            Ok(info) => {
-                any_success = true;
-                state.metrics.system_info.set(1);
-                state.metrics.system_uptime_seconds.set(info.uptime_seconds);
-
-                // Total memory
-                if let Some(physmem) = info.physmem {
-                    state.metrics.system_memory_total_bytes.set(physmem as f64);
-                }
-
-                // Load average
-                if let Some(loadavg) = info.loadavg {
-                    if loadavg.len() >= 3 {
-                        state
-                            .metrics
-                            .system_load_average
-                            .with_label_values(&["1m"])
-                            .set(loadavg[0]);
-                        state
-                            .metrics
-                            .system_load_average
-                            .with_label_values(&["5m"])
-                            .set(loadavg[1]);
-                        state
-                            .metrics
-                            .system_load_average
-                            .with_label_values(&["15m"])
-                            .set(loadavg[2]);
-                    }
-                }
-
-                info!(
-                    "Updated system info: {} ({}) - uptime: {:.0}s",
-                    info.hostname, info.version, info.uptime_seconds
-                );
-            }
-            Err(e) => {
-                warn!("Failed to query system info: {}", e);
-            }
-        }
-    }
-
-    // Collect reporting metrics (CPU, Memory, Disk Temp)
-    match state.client.query_reporting_graphs().await {
-        Ok(graphs) => {
-            // Pre-size for typical case: 3 base queries + ~10 disks + ~5 interfaces
-            let mut queries = Vec::with_capacity(20);
-
-            // Add CPU and Memory queries
-            queries.push(crate::truenas::types::ReportingQuery {
-                name: "cpu".to_string(),
-                identifier: None,
-            });
-            queries.push(crate::truenas::types::ReportingQuery {
-                name: "cputemp".to_string(),
-                identifier: None,
-            });
-            queries.push(crate::truenas::types::ReportingQuery {
-                name: "memory".to_string(),
-                identifier: None,
-            });
-
-            // Find disk temp, disk I/O, and interface graphs
-            for graph in graphs {
-                if graph.name == "disktemp" {
-                    if let Some(identifiers) = graph.identifiers.as_ref() {
-                        for id in identifiers {
-                            queries.push(crate::truenas::types::ReportingQuery {
-                                name: "disktemp".to_string(),
-                                identifier: Some(id.clone()),
-                            });
-                        }
-                    }
-                } else if graph.name == "disk" {
-                    // Disk I/O
-                    if let Some(identifiers) = graph.identifiers.as_ref() {
-                        for id in identifiers {
-                            queries.push(crate::truenas::types::ReportingQuery {
-                                name: "disk".to_string(),
-                                identifier: Some(id.clone()),
-                            });
-                        }
-                    }
-                } else if graph.name == "interface" {
-                    // Network Traffic
-                    if let Some(identifiers) = graph.identifiers.as_ref() {
-                        for id in identifiers {
-                            queries.push(crate::truenas::types::ReportingQuery {
-                                name: "interface".to_string(),
-                                identifier: Some(id.clone()),
-                            });
-                        }
-                    }
-                }
-            }
-
-            // Execute batch query if we have queries
-            if !queries.is_empty() {
-                match state.client.query_reporting_data(queries, None).await {
-                    Ok(results) => {
-                        any_success = true;
-                        for res in results {
-                            if let Some(last_point) = res.data.last() {
-                                match res.name.as_str() {
-                                    "cpu" => {
-                                        for (i, label) in res.legend.iter().enumerate() {
-                                            if let Some(Some(val)) = last_point.get(i) {
-                                                state
-                                                    .metrics
-                                                    .system_cpu_usage_percent
-                                                    .with_label_values(&[label])
-                                                    .set(*val);
-                                            }
-                                        }
-                                    }
-                                    "cputemp" => {
-                                        for (i, label) in res.legend.iter().enumerate() {
-                                            if let Some(Some(val)) = last_point.get(i) {
-                                                state
-                                                    .metrics
-                                                    .system_cpu_temperature_celsius
-                                                    .with_label_values(&[label])
-                                                    .set(*val);
-                                            }
-                                        }
-                                    }
-                                    "memory" => {
-                                        let mut available_bytes = 0.0;
-                                        for (i, label) in res.legend.iter().enumerate() {
-                                            if let Some(Some(val)) = last_point.get(i) {
-                                                state
-                                                    .metrics
-                                                    .system_memory_bytes
-                                                    .with_label_values(&[label])
-                                                    .set(*val);
-
-                                                // Capture available memory (usually labeled "free" or "available" depending on TrueNAS version,
-                                                // but based on valid labels from curl output, it might be "free" or similar.
-                                                // Actually, common labels are "free", "active", "inactive", "wired".
-                                                // "Available" usually means free + inactive or similar.
-                                                // Let's assume for now we just want to calculate used = total - free.
-                                                // Or if we have a "free" metric, use that.
-                                                // Wait, the user said "memory available but not memory used".
-                                                // The current metric `system_memory_bytes` has labels.
-                                                // In the curl output from earlier: truenas_truenas_system_memory_bytes{state="available"}
-                                                // So there IS a state="available".
-                                                if label == "available" {
-                                                    available_bytes = *val;
-                                                }
-                                            }
-                                        }
-
-                                        // Calculate used = total - available
-                                        let total = state.metrics.system_memory_total_bytes.get();
-                                        if total > 0.0 && available_bytes > 0.0 {
-                                            state
-                                                .metrics
-                                                .system_memory_used_bytes
-                                                .set(total - available_bytes);
-                                        }
-                                    }
-                                    "disktemp" => {
-                                        // identifier contains the info.
-                                        let device = res.identifier.as_deref().unwrap_or("unknown");
-
-                                        // Legend: [time, temperature_value] or similar
-                                        if let Some(idx) = res
-                                            .legend
-                                            .iter()
-                                            .position(|l| l == "temperature_value" || l == "value")
-                                        {
-                                            if let Some(Some(val)) = last_point.get(idx) {
-                                                state
-                                                    .metrics
-                                                    .disk_temperature_celsius
-                                                    .with_label_values(&[device])
-                                                    .set(*val);
-                                            }
-                                        } else if res.legend.len() > 1 {
-                                            // Fallback: assume last column is value
-                                            if let Some(Some(val)) = last_point.last() {
-                                                state
-                                                    .metrics
-                                                    .disk_temperature_celsius
-                                                    .with_label_values(&[device])
-                                                    .set(*val);
-                                            }
-                                        }
-                                    }
-                                    "disk" => {
-                                        // Disk I/O. Legend: ["time", "reads", "writes"]
-                                        let device = res.identifier.as_deref().unwrap_or("unknown");
-
-                                        if let Some(idx) =
-                                            res.legend.iter().position(|l| l == "reads")
-                                        {
-                                            if let Some(Some(val)) = last_point.get(idx) {
-                                                state
-                                                    .metrics
-                                                    .disk_read_bytes_per_second
-                                                    .with_label_values(&[device])
-                                                    .set(*val); // Assuming raw bytes/s or close
-                                            }
-                                        }
-                                        if let Some(idx) =
-                                            res.legend.iter().position(|l| l == "writes")
-                                        {
-                                            if let Some(Some(val)) = last_point.get(idx) {
-                                                state
-                                                    .metrics
-                                                    .disk_write_bytes_per_second
-                                                    .with_label_values(&[device])
-                                                    .set(*val);
-                                            }
-                                        }
-                                    }
-                                    "interface" => {
-                                        // Network Traffic. Legend: ["time", "received", "sent"]
-                                        let interface =
-                                            res.identifier.as_deref().unwrap_or("unknown");
-
-                                        if let Some(idx) =
-                                            res.legend.iter().position(|l| l == "received")
-                                        {
-                                            if let Some(Some(val)) = last_point.get(idx) {
-                                                state
-                                                    .metrics
-                                                    .network_receive_bytes_per_second
-                                                    .with_label_values(&[interface])
-                                                    .set(*val);
-                                            }
-                                        }
-                                        if let Some(idx) =
-                                            res.legend.iter().position(|l| l == "sent")
-                                        {
-                                            if let Some(Some(val)) = last_point.get(idx) {
-                                                state
-                                                    .metrics
-                                                    .network_transmit_bytes_per_second
-                                                    .with_label_values(&[interface])
-                                                    .set(*val);
-                                            }
-                                        }
-                                    }
-                                    _ => {}
-                                }
-                            }
-                        }
-                        info!("Updated reporting metrics (CPU, Mem, Disk Temp, Net, I/O)");
-                    }
-                    Err(e) => warn!("Failed to query reporting data: {}", e),
-                }
-            }
-        }
-        Err(e) => warn!("Failed to query reporting graphs: {}", e),
+        collect!(collectors::collect_system_info_metrics(&ctx));
+        collect!(collectors::collect_system_reporting_metrics(&ctx));
     }
 
     // Collect disk metrics
-    match state.client.query_disks().await {
-        Ok(disks) => {
-            any_success = true;
-            for disk in disks {
-                // Set disk info metric
-                let size_str = disk.size.to_string();
-                state
-                    .metrics
-                    .disk_info
-                    .with_label_values(&[&disk.name, &disk.serial, &disk.model, &size_str])
-                    .set(1);
-            }
-            info!("Updated disk metrics");
-        }
-        Err(e) => {
-            warn!("Failed to query disks: {}", e);
-        }
-    }
+    collect!(collectors::collect_disk_metrics(&ctx));
+    collect!(collectors::collect_smart_metrics(&ctx));
 
-    match state.client.query_smart_tests().await {
-        Ok(disks) => {
-            any_success = true;
+    // Collect application metrics
+    collect!(collectors::collect_app_metrics(&ctx));
 
-            for disk in disks {
-                let disk_name = disk.name.clone();
-
-                // Group tests by description (which acts as test type, e.g. "Extended offline")
-                // and keep the one with the highest lifetime.
-                // Pre-size for typical case: 2-4 test types per disk
-                let mut latest_tests: std::collections::HashMap<
-                    String,
-                    crate::truenas::types::SmartTestEntry,
-                > = std::collections::HashMap::with_capacity(4);
-
-                for test in disk.tests {
-                    // Use description as the test type key
-                    let key = test.description.clone();
-                    match latest_tests.entry(key) {
-                        std::collections::hash_map::Entry::Vacant(e) => {
-                            e.insert(test);
-                        }
-                        std::collections::hash_map::Entry::Occupied(mut e) => {
-                            if test.lifetime > e.get().lifetime {
-                                e.insert(test);
-                            }
-                        }
-                    }
-                }
-
-                for (test_type, test) in latest_tests {
-                    let status_str = test.status.to_uppercase();
-                    let status_value = if status_str == "SUCCESS"
-                        || status_str == "COMPLETED WITHOUT ERROR"
-                        || status_str == "RUNNING"
-                    {
-                        0
-                    } else {
-                        warn!(
-                            "SMART test failure/unknown status for disk {} ({}): {}",
-                            disk_name, test_type, status_str
-                        );
-                        1
-                    };
-
-                    state
-                        .metrics
-                        .smart_test_status
-                        .with_label_values(&[&disk_name, &test_type])
-                        .set(status_value);
-
-                    state
-                        .metrics
-                        .smart_test_lifetime_hours
-                        .with_label_values(&[&disk_name, &test_type])
-                        .set(test.lifetime as f64);
-
-                    // Calculate and set test timestamp if power_on_hours_ago is available
-                    if let Some(hours_ago) = test.power_on_hours_ago {
-                        let now = std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap()
-                            .as_secs() as f64;
-                        let test_timestamp = now - (hours_ago as f64 * 3600.0);
-
-                        state
-                            .metrics
-                            .smart_test_timestamp_seconds
-                            .with_label_values(&[&disk_name, &test_type])
-                            .set(test_timestamp);
-
-                        // Calculate current disk power-on hours
-                        let current_disk_hours = test.lifetime + hours_ago;
-                        state
-                            .metrics
-                            .disk_power_on_hours
-                            .with_label_values(&[&disk_name])
-                            .set(current_disk_hours as f64);
-                    }
-                }
-            }
-            info!("Updated SMART test metrics");
-        }
-        Err(e) => {
-            warn!("Failed to query SMART tests: {}", e);
-        }
-    }
-
-    // Collect application info
-    match state.client.query_apps().await {
-        Ok(apps) => {
-            any_success = true;
-            for app in apps {
-                // 0 = stopped, 1 = running
-                let status_value = if app.state.to_uppercase() == "RUNNING" {
-                    1
-                } else {
-                    0
-                };
-                state
-                    .metrics
-                    .app_status
-                    .with_label_values(&[&app.name])
-                    .set(status_value);
-
-                // Update available
-                let update_value = if app.update_available { 1 } else { 0 };
-                state
-                    .metrics
-                    .app_update_available
-                    .with_label_values(&[&app.name])
-                    .set(update_value);
-            }
-            info!("Updated application status metrics");
-        }
-        Err(e) => {
-            warn!("Failed to query apps: {}", e);
-        }
-    }
-
-    // Collect network interface info
-    match state.client.query_network_interfaces().await {
-        Ok(interfaces) => {
-            any_success = true;
-            for iface in interfaces {
-                let link_state = &iface.state.link_state;
-                state
-                    .metrics
-                    .network_interface_info
-                    .with_label_values(&[&iface.name, link_state])
-                    .set(1);
-            }
-            info!("Updated network interface metrics");
-        }
-        Err(e) => {
-            warn!("Failed to query network interfaces: {}", e);
-        }
-    }
+    // Collect network interface metrics
+    collect!(collectors::collect_network_interface_metrics(&ctx));
 
     // Collect service status
-    match state.client.query_services().await {
-        Ok(services) => {
-            any_success = true;
-            for service in services {
-                let status_value = if service.state.to_uppercase() == "RUNNING" {
-                    1
-                } else {
-                    0
-                };
-                state
-                    .metrics
-                    .service_status
-                    .with_label_values(&[&service.service])
-                    .set(status_value);
-            }
-            info!("Updated service status metrics");
-        }
-        Err(e) => {
-            warn!("Failed to query services: {}", e);
-        }
-    }
+    collect!(collectors::collect_service_metrics(&ctx));
 
     // If all queries failed, return error so truenas_up is set to 0
     if !any_success {

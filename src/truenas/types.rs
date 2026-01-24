@@ -17,7 +17,7 @@
 //! - `pool.query` → [`Pool`], [`PoolScan`], [`Topology`], [`VDev`]
 //! - `pool.dataset.query` → [`Dataset`]
 //! - `disk.query` → [`DiskInfo`]
-//! - `smart.test.results` → [`SmartTestResult`]
+//! - `smart.test.results` → [`SmartTestDisk`]
 //! - `app.query` → [`AppInfo`]
 //! - `sharing.smb.query` → [`SmbShare`]
 //! - `sharing.nfs.query` → [`NfsShare`]

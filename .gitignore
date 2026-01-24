@@ -8,6 +8,7 @@
 *.swo
 *~
 .DS_Store
+.claude
 
 # Environment and secrets
 .env
