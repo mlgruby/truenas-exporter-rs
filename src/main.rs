@@ -28,7 +28,7 @@ struct Args {
     addr: String,
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() -> Result<()> {
     // Initialize tracing
     tracing_subscriber::registry()

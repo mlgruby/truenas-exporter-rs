@@ -53,6 +53,7 @@
 //! - ✅ System alerts and resource usage
 //! - ✅ TLS support with optional certificate verification
 
+pub mod collectors;
 pub mod config;
 pub mod error;
 pub mod metrics;
