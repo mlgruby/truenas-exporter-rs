@@ -532,6 +532,32 @@ impl MetricsCollector {
         Ok(String::from_utf8(buffer)?)
     }
 
+    // Helper methods for setting metrics with common patterns
+
+    /// Set a boolean metric (0.0 or 1.0)
+    pub fn set_bool_metric(&self, metric: &GaugeVec, labels: &[&str], value: bool) {
+        metric
+            .with_label_values(labels)
+            .set(if value { 1.0 } else { 0.0 });
+    }
+
+    /// Set a gauge metric with the given value
+    pub fn set_gauge(&self, metric: &GaugeVec, labels: &[&str], value: f64) {
+        metric.with_label_values(labels).set(value);
+    }
+
+    /// Set a state metric (1.0 if state matches running_state, 0.0 otherwise)
+    pub fn set_state_metric(
+        &self,
+        metric: &GaugeVec,
+        labels: &[&str],
+        state: &str,
+        running_state: &str,
+    ) {
+        let value = if state == running_state { 1.0 } else { 0.0 };
+        metric.with_label_values(labels).set(value);
+    }
+
     /// Reset all metrics (useful before a fresh scrape)
     #[allow(dead_code)] // MVP: Will be used in future iterations
     pub fn reset(&self) {

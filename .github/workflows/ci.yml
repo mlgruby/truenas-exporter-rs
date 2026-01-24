@@ -9,6 +9,7 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
+  # Quick checks - always run on all PRs
   check:
     name: Check
     runs-on: ubuntu-latest
@@ -18,16 +19,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Check
         run: cargo check --all-features
-
-  test:
-    name: Test Suite
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Run tests
-        run: cargo test --all-features
 
   fmt:
     name: Rustfmt
@@ -52,9 +43,27 @@ jobs:
       - name: Run clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
+  # Heavy jobs - only run on PRs to develop (feature → develop)
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    if: github.base_ref == 'develop'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run tests
+        run: cargo test --all-features
+      - name: Generate test report
+        if: always()
+        run: |
+          echo "Test Summary:"
+          cargo test --all-features -- --list | wc -l | xargs echo "Total tests:"
+
   audit:
     name: Security Audit
     runs-on: ubuntu-latest
+    if: github.base_ref == 'develop'
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -67,24 +76,53 @@ jobs:
   build:
     name: Build Release
     runs-on: ubuntu-latest
+    if: github.base_ref == 'develop'
     needs: [check, test, fmt, clippy, audit]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+
       - name: Build release binary
         run: cargo build --release
+
+      - name: Build memory-optimized binary
+        run: cargo build --profile release-memory
+
+      - name: Check binary sizes
+        run: |
+          echo "=== Binary Size Comparison ==="
+          echo "Standard release:"
+          du -h target/release/truenas-exporter
+          echo ""
+          echo "Memory-optimized:"
+          du -h target/release-memory/truenas-exporter
+
+      - name: Upload release binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: truenas-exporter-release
+          path: target/release/truenas-exporter
+          retention-days: 7
+
+      - name: Upload memory-optimized binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: truenas-exporter-memory-optimized
+          path: target/release-memory/truenas-exporter
+          retention-days: 7
 
   docker-build:
     name: Docker Build
     runs-on: ubuntu-latest
+    if: github.base_ref == 'develop'
     needs: [build]
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
+
       - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
@@ -93,7 +131,7 @@ jobs:
           tags: truenas-exporter:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      
+
       - name: Check image size
         run: |
           SIZE=$(docker images truenas-exporter:test --format "{{.Size}}")
