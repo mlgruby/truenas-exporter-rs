@@ -128,6 +128,9 @@ pub async fn collect_system_reporting_metrics(ctx: &CollectionContext<'_>) -> Co
                                 match res.name.as_str() {
                                     "cpu" => {
                                         for (i, label) in res.legend.iter().enumerate() {
+                                            if label == "time" {
+                                                continue;
+                                            }
                                             if let Some(Some(val)) = last_point.get(i) {
                                                 ctx.metrics.set_gauge(
                                                     &ctx.metrics.system_cpu_usage_percent,
@@ -139,6 +142,9 @@ pub async fn collect_system_reporting_metrics(ctx: &CollectionContext<'_>) -> Co
                                     }
                                     "cputemp" => {
                                         for (i, label) in res.legend.iter().enumerate() {
+                                            if label == "time" {
+                                                continue;
+                                            }
                                             if let Some(Some(val)) = last_point.get(i) {
                                                 ctx.metrics.set_gauge(
                                                     &ctx.metrics.system_cpu_temperature_celsius,
