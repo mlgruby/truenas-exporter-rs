@@ -26,6 +26,7 @@
 //!   - Labels: interface
 //! - `truenas_network_transmit_bytes_per_second` - Network transmit rate in bytes per second
 //!   - Labels: interface
+//! - `truenas_zfs_arc_size_bytes` - Current ZFS ARC size in bytes
 
 use super::{CollectionContext, CollectionResult, CollectionStatus};
 use tracing::{info, warn};
@@ -77,6 +78,10 @@ pub async fn collect_system_reporting_metrics(ctx: &CollectionContext<'_>) -> Co
             });
             queries.push(crate::truenas::types::ReportingQuery {
                 name: "memory".to_string(),
+                identifier: None,
+            });
+            queries.push(crate::truenas::types::ReportingQuery {
+                name: "arcsize".to_string(),
                 identifier: None,
             });
 
@@ -196,6 +201,15 @@ pub async fn collect_system_reporting_metrics(ctx: &CollectionContext<'_>) -> Co
                                             }
                                         }
                                     }
+                                    "arcsize" => {
+                                        if let Some(idx) =
+                                            res.legend.iter().position(|l| l == "size")
+                                        {
+                                            if let Some(Some(val)) = last_point.get(idx) {
+                                                ctx.metrics.zfs_arc_size_bytes.set(*val);
+                                            }
+                                        }
+                                    }
                                     "disk" => {
                                         // Disk I/O. Legend: ["time", "reads", "writes"]
                                         let device = res.identifier.as_deref().unwrap_or("unknown");
@@ -255,7 +269,7 @@ pub async fn collect_system_reporting_metrics(ctx: &CollectionContext<'_>) -> Co
                                 }
                             }
                         }
-                        info!("Updated reporting metrics (CPU, Mem, Disk Temp, Net, I/O)");
+                        info!("Updated reporting metrics (CPU, Mem, Disk Temp, Net, I/O, ZFS ARC)");
                         return Ok(CollectionStatus::Success);
                     }
                     Err(e) => warn!("Failed to query reporting data: {}", e),

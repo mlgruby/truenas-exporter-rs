@@ -92,6 +92,15 @@ pub struct MetricsCollector {
     pub system_memory_bytes: Arc<GaugeVec>,
     pub system_memory_used_bytes: Arc<Gauge>,
     pub system_memory_total_bytes: Arc<Gauge>,
+    pub zfs_arc_size_bytes: Arc<Gauge>,
+    pub boot_pool_health: Arc<Gauge>,
+    pub boot_pool_used_ratio: Arc<Gauge>,
+    pub boot_pool_scrub_errors: Arc<Gauge>,
+    pub boot_pool_last_scrub_seconds: Arc<Gauge>,
+    pub nfs_client_count: Arc<Gauge>,
+    pub nfs_client_info: Arc<IntGaugeVec>,
+    pub nfs_client_seconds_since_renew: Arc<GaugeVec>,
+    pub iscsi_client_count: Arc<Gauge>,
     pub system_load_average: Arc<GaugeVec>,
     pub up: Arc<Gauge>,
 
@@ -387,6 +396,55 @@ impl MetricsCollector {
             "Total system memory in bytes",
         )?;
 
+        let zfs_arc_size_bytes = Gauge::new(
+            "truenas_zfs_arc_size_bytes",
+            "Current ZFS ARC size in bytes",
+        )?;
+
+        let boot_pool_health = Gauge::new(
+            "truenas_boot_pool_health",
+            "Boot pool health status (1=healthy, 0=unhealthy)",
+        )?;
+
+        let boot_pool_used_ratio = Gauge::new(
+            "truenas_boot_pool_used_ratio",
+            "Boot pool used space ratio (0-1)",
+        )?;
+
+        let boot_pool_scrub_errors = Gauge::new(
+            "truenas_boot_pool_scrub_errors",
+            "Number of errors found in last boot pool scrub",
+        )?;
+
+        let boot_pool_last_scrub_seconds = Gauge::new(
+            "truenas_boot_pool_last_scrub_seconds",
+            "Unix timestamp of last boot pool scrub completion",
+        )?;
+
+        let nfs_client_count = Gauge::new(
+            "truenas_nfs_client_count",
+            "Number of active NFS client connections",
+        )?;
+
+        let nfs_client_info = IntGaugeVec::new(
+            Opts::new("nfs_client_info", "Active NFS client (value always 1)").namespace("truenas"),
+            &["address", "name", "version", "status"],
+        )?;
+
+        let nfs_client_seconds_since_renew = GaugeVec::new(
+            Opts::new(
+                "nfs_client_seconds_since_renew",
+                "Seconds since NFS client last renewed its lease",
+            )
+            .namespace("truenas"),
+            &["address", "name", "version"],
+        )?;
+
+        let iscsi_client_count = Gauge::new(
+            "truenas_iscsi_client_count",
+            "Number of active iSCSI client sessions",
+        )?;
+
         let system_load_average = GaugeVec::new(
             Opts::new("system_load_average", "System load average").namespace("truenas"),
             &["period"],
@@ -468,6 +526,15 @@ impl MetricsCollector {
         registry.register(Box::new(system_memory_bytes.clone()))?;
         registry.register(Box::new(system_memory_used_bytes.clone()))?;
         registry.register(Box::new(system_memory_total_bytes.clone()))?;
+        registry.register(Box::new(zfs_arc_size_bytes.clone()))?;
+        registry.register(Box::new(boot_pool_health.clone()))?;
+        registry.register(Box::new(boot_pool_used_ratio.clone()))?;
+        registry.register(Box::new(boot_pool_scrub_errors.clone()))?;
+        registry.register(Box::new(boot_pool_last_scrub_seconds.clone()))?;
+        registry.register(Box::new(nfs_client_count.clone()))?;
+        registry.register(Box::new(nfs_client_info.clone()))?;
+        registry.register(Box::new(nfs_client_seconds_since_renew.clone()))?;
+        registry.register(Box::new(iscsi_client_count.clone()))?;
         registry.register(Box::new(system_load_average.clone()))?;
         registry.register(Box::new(network_interface_info.clone()))?;
         registry.register(Box::new(network_receive_bytes_per_second.clone()))?;
@@ -514,6 +581,15 @@ impl MetricsCollector {
             system_memory_bytes: Arc::new(system_memory_bytes),
             system_memory_used_bytes: Arc::new(system_memory_used_bytes),
             system_memory_total_bytes: Arc::new(system_memory_total_bytes),
+            zfs_arc_size_bytes: Arc::new(zfs_arc_size_bytes),
+            boot_pool_health: Arc::new(boot_pool_health),
+            boot_pool_used_ratio: Arc::new(boot_pool_used_ratio),
+            boot_pool_scrub_errors: Arc::new(boot_pool_scrub_errors),
+            boot_pool_last_scrub_seconds: Arc::new(boot_pool_last_scrub_seconds),
+            nfs_client_count: Arc::new(nfs_client_count),
+            nfs_client_info: Arc::new(nfs_client_info),
+            nfs_client_seconds_since_renew: Arc::new(nfs_client_seconds_since_renew),
+            iscsi_client_count: Arc::new(iscsi_client_count),
             system_load_average: Arc::new(system_load_average),
             network_interface_info: Arc::new(network_interface_info),
             network_receive_bytes_per_second: Arc::new(network_receive_bytes_per_second),
@@ -602,6 +678,15 @@ impl MetricsCollector {
         self.system_memory_bytes.reset();
         self.system_memory_used_bytes.set(0.0);
         self.system_memory_total_bytes.set(0.0);
+        self.zfs_arc_size_bytes.set(0.0);
+        self.boot_pool_health.set(0.0);
+        self.boot_pool_used_ratio.set(0.0);
+        self.boot_pool_scrub_errors.set(0.0);
+        self.boot_pool_last_scrub_seconds.set(0.0);
+        self.nfs_client_count.set(0.0);
+        self.nfs_client_info.reset();
+        self.nfs_client_seconds_since_renew.reset();
+        self.iscsi_client_count.set(0.0);
         self.system_load_average.reset();
         self.network_interface_info.reset();
         self.network_receive_bytes_per_second.reset();
