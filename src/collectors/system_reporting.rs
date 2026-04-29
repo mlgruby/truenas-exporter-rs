@@ -151,6 +151,9 @@ pub async fn collect_system_reporting_metrics(ctx: &CollectionContext<'_>) -> Co
                                     "memory" => {
                                         let mut available_bytes = 0.0;
                                         for (i, label) in res.legend.iter().enumerate() {
+                                            if label == "time" {
+                                                continue;
+                                            }
                                             if let Some(Some(val)) = last_point.get(i) {
                                                 ctx.metrics.set_gauge(
                                                     &ctx.metrics.system_memory_bytes,
@@ -158,7 +161,6 @@ pub async fn collect_system_reporting_metrics(ctx: &CollectionContext<'_>) -> Co
                                                     *val,
                                                 );
 
-                                                // Capture available memory for calculating used memory
                                                 if label == "available" {
                                                     available_bytes = *val;
                                                 }
