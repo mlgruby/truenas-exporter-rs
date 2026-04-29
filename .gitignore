@@ -8,7 +8,7 @@
 *.swo
 *~
 .DS_Store
-.claude
+.claude/settings.local.json
 
 # Environment and secrets
 .env
