@@ -264,6 +264,54 @@ pub struct DiskInfo {
     pub hddstandby: String,
     #[serde(default)]
     pub advpowermgmt: String,
+    #[serde(rename = "type", default)]
+    pub disk_type: String,
+    #[serde(default)]
+    pub rotationrate: Option<u32>,
+    #[serde(default)]
+    pub pool: Option<String>,
+}
+
+/// NFS client from nfs.get_nfs4_clients / nfs.get_nfs3_clients
+#[derive(Debug, Deserialize)]
+pub struct NfsClient {
+    pub id: String,
+    pub info: NfsClientInfo,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct NfsClientInfo {
+    #[serde(default)]
+    pub address: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub status: String,
+    #[serde(rename = "seconds from last renew", default)]
+    pub seconds_since_renew: u64,
+}
+
+/// Boot pool state from boot.get_state
+#[derive(Debug, Deserialize)]
+pub struct BootPoolState {
+    pub name: String,
+    pub status: String,
+    pub healthy: bool,
+    #[serde(default)]
+    pub size: u64,
+    #[serde(default)]
+    pub allocated: u64,
+    #[serde(default)]
+    pub scan: Option<BootPoolScan>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BootPoolScan {
+    pub state: Option<String>,
+    #[serde(default)]
+    pub errors: u64,
+    #[serde(default)]
+    pub end_time: Option<serde_json::Value>,
 }
 
 /// Disk temperature aggregation from disk.temperature_agg

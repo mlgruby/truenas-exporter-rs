@@ -106,10 +106,13 @@ where
 // Collector modules
 pub mod alert;
 pub mod app;
+pub mod boot_pool;
 pub mod cloud_sync;
 pub mod dataset;
 pub mod disk;
+pub mod iscsi;
 pub mod network_interface;
+pub mod nfs;
 pub mod pool;
 pub mod service;
 pub mod share;
@@ -121,10 +124,13 @@ pub mod system_reporting;
 // Re-export collector functions for convenient access
 pub use alert::collect_alert_metrics;
 pub use app::collect_app_metrics;
+pub use boot_pool::collect_boot_pool_metrics;
 pub use cloud_sync::collect_cloud_sync_metrics;
 pub use dataset::collect_dataset_metrics;
 pub use disk::collect_disk_metrics;
+pub use iscsi::collect_iscsi_client_count;
 pub use network_interface::collect_network_interface_metrics;
+pub use nfs::collect_nfs_metrics;
 pub use pool::collect_pool_metrics;
 pub use service::collect_service_metrics;
 pub use share::collect_share_metrics;
