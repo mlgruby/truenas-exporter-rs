@@ -26,9 +26,9 @@ pub async fn collect_nfs_client_count(ctx: &CollectionContext<'_>) -> Collection
                 version: &str,
                 metrics: &crate::metrics::MetricsCollector| {
         for c in clients {
-            let addr = &c.info.address;
-            let name = &c.info.name;
-            let status = &c.info.status;
+            let addr = c.info.address.as_str();
+            let name = c.info.name.as_str();
+            let status = c.info.status.as_str();
             metrics
                 .nfs_client_info
                 .with_label_values(&[addr, name, version, status])
