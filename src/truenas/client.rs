@@ -183,6 +183,33 @@ impl TrueNasClient {
             .await
     }
 
+    /// Query active NFSv4 clients with per-client detail
+    pub async fn query_nfs4_clients(&self) -> Result<Vec<NfsClient>> {
+        self.execute_query("nfs.get_nfs4_clients", Some(serde_json::json!([])))
+            .await
+    }
+
+    /// Query active NFSv3 clients with per-client detail
+    pub async fn query_nfs3_clients(&self) -> Result<Vec<NfsClient>> {
+        self.execute_query("nfs.get_nfs3_clients", Some(serde_json::json!([])))
+            .await
+    }
+
+    /// Query boot pool state
+    pub async fn query_boot_pool(&self) -> Result<BootPoolState> {
+        self.execute_query("boot.get_state", None).await
+    }
+
+    /// Query active NFS client count
+    pub async fn query_nfs_client_count(&self) -> Result<u64> {
+        self.execute_query("nfs.client_count", None).await
+    }
+
+    /// Query active iSCSI client count
+    pub async fn query_iscsi_client_count(&self) -> Result<u64> {
+        self.execute_query("iscsi.global.client_count", None).await
+    }
+
     /// Query available reporting graphs
     pub async fn query_reporting_graphs(&self) -> Result<Vec<ReportingGraph>> {
         self.execute_query("reporting.graphs", Some(serde_json::json!([])))

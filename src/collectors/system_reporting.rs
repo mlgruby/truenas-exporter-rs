@@ -79,6 +79,10 @@ pub async fn collect_system_reporting_metrics(ctx: &CollectionContext<'_>) -> Co
                 name: "memory".to_string(),
                 identifier: None,
             });
+            queries.push(crate::truenas::types::ReportingQuery {
+                name: "arcsize".to_string(),
+                identifier: None,
+            });
 
             // Find disk temp, disk I/O, and interface graphs
             for graph in graphs {
@@ -193,6 +197,15 @@ pub async fn collect_system_reporting_metrics(ctx: &CollectionContext<'_>) -> Co
                                                     &[device],
                                                     *val,
                                                 );
+                                            }
+                                        }
+                                    }
+                                    "arcsize" => {
+                                        if let Some(idx) =
+                                            res.legend.iter().position(|l| l == "size")
+                                        {
+                                            if let Some(Some(val)) = last_point.get(idx) {
+                                                ctx.metrics.zfs_arc_size_bytes.set(*val);
                                             }
                                         }
                                     }
