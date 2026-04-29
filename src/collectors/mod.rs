@@ -130,7 +130,7 @@ pub use dataset::collect_dataset_metrics;
 pub use disk::collect_disk_metrics;
 pub use iscsi::collect_iscsi_client_count;
 pub use network_interface::collect_network_interface_metrics;
-pub use nfs::collect_nfs_client_count;
+pub use nfs::collect_nfs_metrics;
 pub use pool::collect_pool_metrics;
 pub use service::collect_service_metrics;
 pub use share::collect_share_metrics;

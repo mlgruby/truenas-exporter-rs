@@ -26,6 +26,7 @@
 //!   - Labels: interface
 //! - `truenas_network_transmit_bytes_per_second` - Network transmit rate in bytes per second
 //!   - Labels: interface
+//! - `truenas_zfs_arc_size_bytes` - Current ZFS ARC size in bytes
 
 use super::{CollectionContext, CollectionResult, CollectionStatus};
 use tracing::{info, warn};
@@ -268,7 +269,7 @@ pub async fn collect_system_reporting_metrics(ctx: &CollectionContext<'_>) -> Co
                                 }
                             }
                         }
-                        info!("Updated reporting metrics (CPU, Mem, Disk Temp, Net, I/O)");
+                        info!("Updated reporting metrics (CPU, Mem, Disk Temp, Net, I/O, ZFS ARC)");
                         return Ok(CollectionStatus::Success);
                     }
                     Err(e) => warn!("Failed to query reporting data: {}", e),

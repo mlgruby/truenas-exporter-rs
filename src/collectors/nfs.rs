@@ -1,7 +1,7 @@
 use super::{CollectionContext, CollectionResult, CollectionStatus};
 use tracing::{info, warn};
 
-pub async fn collect_nfs_client_count(ctx: &CollectionContext<'_>) -> CollectionResult {
+pub async fn collect_nfs_metrics(ctx: &CollectionContext<'_>) -> CollectionResult {
     let (count_res, v4_res, v3_res) = tokio::join!(
         ctx.client.query_nfs_client_count(),
         ctx.client.query_nfs4_clients(),
@@ -11,11 +11,6 @@ pub async fn collect_nfs_client_count(ctx: &CollectionContext<'_>) -> Collection
     let count_ok = count_res.is_ok();
     let v4_ok = v4_res.is_ok();
     let v3_ok = v3_res.is_ok();
-
-    match count_res {
-        Ok(count) => ctx.metrics.nfs_client_count.set(count as f64),
-        Err(e) => warn!("Failed to query NFS client count: {}", e),
-    }
 
     ctx.metrics.nfs_client_info.reset();
     ctx.metrics.nfs_client_seconds_since_renew.reset();
@@ -55,8 +50,19 @@ pub async fn collect_nfs_client_count(ctx: &CollectionContext<'_>) -> Collection
         Err(e) => warn!("Failed to query NFSv3 clients: {}", e),
     }
 
+    // Use API count if available; fall back to sum from per-client lists
+    match count_res {
+        Ok(count) => ctx.metrics.nfs_client_count.set(count as f64),
+        Err(e) => {
+            warn!("Failed to query NFS client count: {}", e);
+            if v4_ok || v3_ok {
+                ctx.metrics.nfs_client_count.set(total as f64);
+            }
+        }
+    }
+
     if count_ok || v4_ok || v3_ok {
-        info!("Updated NFS client metrics: {} clients", total);
+        info!("Updated NFS metrics: {} clients", total);
         Ok(CollectionStatus::Success)
     } else {
         Ok(CollectionStatus::Failed)

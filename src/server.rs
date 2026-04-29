@@ -155,9 +155,9 @@ async fn collect_metrics(state: &AppState) -> anyhow::Result<()> {
     // Collect service status
     collect!(collectors::collect_service_metrics(&ctx));
 
-    // Collect boot pool, NFS and iSCSI client counts
+    // Collect boot pool, NFS clients (count + per-client detail), iSCSI sessions
     collect!(collectors::collect_boot_pool_metrics(&ctx));
-    collect!(collectors::collect_nfs_client_count(&ctx));
+    collect!(collectors::collect_nfs_metrics(&ctx));
     collect!(collectors::collect_iscsi_client_count(&ctx));
 
     // If all queries failed, return error so truenas_up is set to 0

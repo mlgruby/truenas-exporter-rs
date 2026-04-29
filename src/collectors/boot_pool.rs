@@ -12,6 +12,8 @@ pub async fn collect_boot_pool_metrics(ctx: &CollectionContext<'_>) -> Collectio
                 ctx.metrics
                     .boot_pool_used_ratio
                     .set(pool.allocated as f64 / pool.size as f64);
+            } else {
+                ctx.metrics.boot_pool_used_ratio.set(0.0);
             }
 
             if let Some(scan) = &pool.scan {
@@ -26,6 +28,9 @@ pub async fn collect_boot_pool_metrics(ctx: &CollectionContext<'_>) -> Collectio
                         }
                     }
                 }
+            } else {
+                ctx.metrics.boot_pool_scrub_errors.set(0.0);
+                ctx.metrics.boot_pool_last_scrub_seconds.set(0.0);
             }
 
             info!(
