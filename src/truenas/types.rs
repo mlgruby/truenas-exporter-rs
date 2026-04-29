@@ -281,6 +281,7 @@ pub struct NfsClient {
 
 #[derive(Debug, Deserialize)]
 pub struct NfsClientInfo {
+    #[serde(default)]
     pub address: String,
     #[serde(default)]
     pub name: String,
