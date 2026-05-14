@@ -131,6 +131,7 @@ async fn collect_metrics(state: &AppState) -> anyhow::Result<()> {
 
     // Collect data protection metrics
     collect!(collectors::collect_cloud_sync_metrics(&ctx));
+    collect!(collectors::collect_replication_metrics(&ctx));
     collect!(collectors::collect_snapshot_metrics(&ctx));
 
     // Collect alerts

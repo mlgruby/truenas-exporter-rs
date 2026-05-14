@@ -132,6 +132,9 @@ This is a standard failure. Check that:
 
 - `truenas_cloud_sync_status` (Active tasks status)
 - `truenas_cloud_sync_progress_percent` (Real-time progress)
+- `truenas_replication_status` (ZFS replication state: PENDING/RUNNING/FINISHED/ERROR/HOLD; labels: `name`, `direction`, `transport`, `state`)
+- `truenas_replication_progress_percent` (Live progress while a replication job runs)
+- `truenas_replication_last_run_timestamp_seconds` (Unix timestamp of the last replication run; alert on `time() - X > 24h`)
 - `truenas_snapshot_task_status` (Snapshot success)
 
 ### 3. Services & Sharing

@@ -175,6 +175,130 @@ fn test_deserialize_dataset() {
 }
 
 #[test]
+fn test_deserialize_replication_task_full() {
+    // Given: replication task with state.datetime populated and no active job
+    let json = json!({
+        "id": 1,
+        "name": "backup-to-remote",
+        "direction": "PUSH",
+        "transport": "SSH",
+        "enabled": true,
+        "source_datasets": ["tank/data", "tank/media"],
+        "target_dataset": "remote/backup",
+        "state": {
+            "state": "FINISHED",
+            "datetime": {"$date": 1_715_000_000_000u64},
+            "error": null
+        }
+    });
+
+    // When: deserialized
+    let task: ReplicationTask =
+        serde_json::from_value(json).expect("Failed to parse ReplicationTask");
+
+    // Then: all fields populated correctly
+    assert_eq!(task.id, 1);
+    assert_eq!(task.name, "backup-to-remote");
+    assert_eq!(task.direction, "PUSH");
+    assert_eq!(task.transport, "SSH");
+    assert!(task.enabled);
+    assert_eq!(task.source_datasets, vec!["tank/data", "tank/media"]);
+    assert_eq!(task.target_dataset, "remote/backup");
+
+    let state = task.state.expect("state should be present");
+    assert_eq!(state.state, "FINISHED");
+    assert!(state.error.is_none());
+
+    // datetime must be present and shaped as {"$date": ms}
+    let dt = state.datetime.expect("datetime should be present");
+    let map = dt.as_object().expect("datetime should be an object");
+    assert_eq!(
+        map.get("$date").and_then(|v| v.as_u64()),
+        Some(1_715_000_000_000)
+    );
+
+    assert!(task.job.is_none());
+}
+
+#[test]
+fn test_deserialize_replication_task_pending_no_state_datetime() {
+    // Given: replication task whose zettarepl state is the default `{"state": "PENDING"}`
+    // (datetime/error absent — matches the empty zettarepl context case)
+    let json = json!({
+        "id": 2,
+        "name": "fresh-task",
+        "direction": "PULL",
+        "transport": "LOCAL",
+        "enabled": true,
+        "state": {
+            "state": "PENDING"
+        }
+    });
+
+    let task: ReplicationTask =
+        serde_json::from_value(json).expect("Failed to parse pending ReplicationTask");
+
+    let state = task.state.expect("state should be present");
+    assert_eq!(state.state, "PENDING");
+    assert!(state.datetime.is_none());
+    assert!(state.error.is_none());
+    assert!(task.job.is_none());
+}
+
+#[test]
+fn test_deserialize_replication_task_active_job() {
+    // Given: replication mid-flight — state.state=RUNNING and a job with progress
+    let json = json!({
+        "id": 3,
+        "name": "running-task",
+        "direction": "PUSH",
+        "transport": "SSH+NETCAT",
+        "enabled": true,
+        "state": {
+            "state": "RUNNING"
+        },
+        "job": {
+            "state": "RUNNING",
+            "progress": {"percent": 42.5},
+            "time_finished": null
+        }
+    });
+
+    let task: ReplicationTask =
+        serde_json::from_value(json).expect("Failed to parse running ReplicationTask");
+
+    let state = task.state.expect("state should be present");
+    assert_eq!(state.state, "RUNNING");
+
+    let job = task.job.expect("job should be present mid-flight");
+    assert_eq!(job.state, "RUNNING");
+    let progress = job.progress.expect("progress should be present");
+    assert_eq!(progress.percent, Some(42.5));
+}
+
+#[test]
+fn test_deserialize_replication_task_minimal() {
+    // Given: only the unconditionally-present fields
+    let json = json!({
+        "id": 4,
+        "name": "bare",
+        "direction": "PUSH",
+        "transport": "SSH",
+        "enabled": false
+    });
+
+    let task: ReplicationTask =
+        serde_json::from_value(json).expect("Failed to parse minimal ReplicationTask");
+
+    assert_eq!(task.name, "bare");
+    assert!(!task.enabled);
+    assert!(task.source_datasets.is_empty());
+    assert_eq!(task.target_dataset, "");
+    assert!(task.state.is_none());
+    assert!(task.job.is_none());
+}
+
+#[test]
 fn test_deserialize_alert() {
     let json = json!({
         "uuid": "1234",

@@ -155,6 +155,11 @@ impl TrueNasClient {
             .await
     }
 
+    pub async fn query_replication_tasks(&self) -> Result<Vec<ReplicationTask>> {
+        self.execute_query("replication.query", Some(serde_json::json!([])))
+            .await
+    }
+
     pub async fn query_snapshot_tasks(&self) -> Result<Vec<SnapshotTask>> {
         self.execute_query("pool.snapshottask.query", Some(serde_json::json!([])))
             .await

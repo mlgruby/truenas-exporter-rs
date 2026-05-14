@@ -62,6 +62,9 @@ pub struct MetricsCollector {
     // Data Protection metrics
     pub cloud_sync_status: Arc<GaugeVec>,
     pub cloud_sync_progress: Arc<GaugeVec>,
+    pub replication_status: Arc<GaugeVec>,
+    pub replication_progress: Arc<GaugeVec>,
+    pub replication_last_run_seconds: Arc<GaugeVec>,
     pub snapshot_task_status: Arc<GaugeVec>,
     pub alert_count: Arc<GaugeVec>,
     pub alert_info: Arc<GaugeVec>,
@@ -233,6 +236,30 @@ impl MetricsCollector {
             )
             .namespace("truenas"),
             &["description"],
+        )?;
+        let replication_status = GaugeVec::new(
+            Opts::new(
+                "replication_status",
+                "Replication Task Status (1=current state)",
+            )
+            .namespace("truenas"),
+            &["name", "direction", "transport", "state"],
+        )?;
+        let replication_progress = GaugeVec::new(
+            Opts::new(
+                "replication_progress_percent",
+                "Replication Progress Percentage (only emitted while a job is active)",
+            )
+            .namespace("truenas"),
+            &["name"],
+        )?;
+        let replication_last_run_seconds = GaugeVec::new(
+            Opts::new(
+                "replication_last_run_timestamp_seconds",
+                "Unix timestamp of the last replication run",
+            )
+            .namespace("truenas"),
+            &["name"],
         )?;
         let snapshot_task_status = GaugeVec::new(
             Opts::new("snapshot_task_status", "Snapshot Task Status (1=Active)")
@@ -504,6 +531,9 @@ impl MetricsCollector {
         registry.register(Box::new(share_nfs_enabled.clone()))?;
         registry.register(Box::new(cloud_sync_status.clone()))?;
         registry.register(Box::new(cloud_sync_progress.clone()))?;
+        registry.register(Box::new(replication_status.clone()))?;
+        registry.register(Box::new(replication_progress.clone()))?;
+        registry.register(Box::new(replication_last_run_seconds.clone()))?;
         registry.register(Box::new(snapshot_task_status.clone()))?;
         registry.register(Box::new(alert_count.clone()))?;
         registry.register(Box::new(alert_info.clone()))?;
@@ -559,6 +589,9 @@ impl MetricsCollector {
             share_nfs_enabled: Arc::new(share_nfs_enabled),
             cloud_sync_status: Arc::new(cloud_sync_status),
             cloud_sync_progress: Arc::new(cloud_sync_progress),
+            replication_status: Arc::new(replication_status),
+            replication_progress: Arc::new(replication_progress),
+            replication_last_run_seconds: Arc::new(replication_last_run_seconds),
             snapshot_task_status: Arc::new(snapshot_task_status),
             alert_count: Arc::new(alert_count),
             alert_info: Arc::new(alert_info),
@@ -652,6 +685,9 @@ impl MetricsCollector {
         self.share_nfs_enabled.reset();
         self.cloud_sync_status.reset();
         self.cloud_sync_progress.reset();
+        self.replication_status.reset();
+        self.replication_progress.reset();
+        self.replication_last_run_seconds.reset();
         self.snapshot_task_status.reset();
         self.alert_count.reset();
         self.alert_info.reset();

@@ -162,6 +162,59 @@ fn test_metric_reset_behavior() {
     assert_eq!(task2_count, 0, "task2 should be cleared after reset");
 }
 
+#[test]
+fn test_replication_metric_reset_behavior() {
+    // Given: replication_status set with state=RUNNING for a task
+    let metrics = create_test_metrics();
+    metrics
+        .replication_status
+        .with_label_values(&["repl-a", "PUSH", "SSH", "RUNNING"])
+        .set(1.0);
+    metrics
+        .replication_progress
+        .with_label_values(&["repl-a"])
+        .set(50.0);
+    metrics
+        .replication_last_run_seconds
+        .with_label_values(&["repl-a"])
+        .set(1_715_000_000.0);
+
+    let before = metrics.render().unwrap();
+    assert!(before.contains("state=\"RUNNING\""));
+    assert!(before.contains("truenas_replication_progress_percent"));
+
+    // When: collector resets all replication metrics and re-emits FINISHED (no active job)
+    metrics.replication_status.reset();
+    metrics.replication_progress.reset();
+    metrics.replication_last_run_seconds.reset();
+    metrics
+        .replication_status
+        .with_label_values(&["repl-a", "PUSH", "SSH", "FINISHED"])
+        .set(1.0);
+    metrics
+        .replication_last_run_seconds
+        .with_label_values(&["repl-a"])
+        .set(1_715_000_100.0);
+
+    // Then: only FINISHED is present, the RUNNING label and the progress line are gone
+    let after = metrics.render().unwrap();
+    assert!(after.contains("state=\"FINISHED\""));
+    assert_eq!(
+        after.matches("state=\"RUNNING\"").count(),
+        0,
+        "RUNNING state should be cleared after reset"
+    );
+    // Progress metric should no longer have a sample for repl-a
+    let progress_samples = after
+        .lines()
+        .filter(|l| l.starts_with("truenas_replication_progress_percent{") && !l.starts_with("# "))
+        .count();
+    assert_eq!(
+        progress_samples, 0,
+        "replication_progress_percent should be cleared after reset"
+    );
+}
+
 #[tokio::test]
 async fn test_empty_collection_succeeds() {
     // Given: An API query that returns empty data
