@@ -22,6 +22,7 @@
 //! - `sharing.smb.query` → [`SmbShare`]
 //! - `sharing.nfs.query` → [`NfsShare`]
 //! - `cloudsync.query` → [`CloudSyncTask`]
+//! - `replication.query` → [`ReplicationTask`]
 //! - `pool.snapshottask.query` → [`SnapshotTask`]
 //! - `alert.list` → [`TruenasAlert`]
 //! - `system.info` → [`SystemInfo`]
@@ -196,6 +197,47 @@ pub struct CloudSyncJob {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct CloudSyncProgress {
+    #[serde(default)]
+    pub percent: Option<f64>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ReplicationTask {
+    pub id: i64,
+    pub name: String,
+    pub direction: String, // "PUSH" | "PULL"
+    pub transport: String, // "SSH" | "LOCAL" | "SSH+NETCAT"
+    pub enabled: bool,
+    #[serde(default)]
+    pub source_datasets: Vec<String>,
+    #[serde(default)]
+    pub target_dataset: String,
+    #[serde(default)]
+    pub state: Option<ReplicationState>,
+    #[serde(default)]
+    pub job: Option<ReplicationJob>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ReplicationState {
+    pub state: String, // "PENDING" | "RUNNING" | "FINISHED" | "ERROR" | "HOLD"
+    #[serde(default)]
+    pub datetime: Option<serde_json::Value>, // {"$date": ms_epoch}
+    #[serde(default)]
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ReplicationJob {
+    pub state: String,
+    #[serde(default)]
+    pub progress: Option<ReplicationProgress>,
+    #[serde(default)]
+    pub time_finished: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ReplicationProgress {
     #[serde(default)]
     pub percent: Option<f64>,
 }
